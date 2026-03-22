@@ -1,0 +1,36 @@
+{
+  "fill" : {
+    "automatic-gradient" : "extended-gray:1.00000,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "fill" : {
+            "automatic-gradient" : "extended-srgb:0.79608,0.18824,0.87843,1.00000"
+          },
+          "image-name" : "square.and.arrow.up-black.svg",
+          "name" : "square.and.arrow.up-black",
+          "position" : {
+            "scale" : 0.9,
+            "translation-in-points" : [
+              5,
+              15
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "squares" : "shared"
+  }
+}

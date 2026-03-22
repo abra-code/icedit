@@ -1,0 +1,401 @@
+#!/usr/bin/env python3
+
+import json
+import logging
+import os
+import sys
+import shutil
+import tempfile
+import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from icon_editor.core import (
+    IconEditor,
+    resolve_color,
+    _validate_scale,
+    _validate_translucency,
+    _validate_blend_mode,
+    _validate_shadow_kind,
+    _validate_shadow_opacity,
+)
+
+logging.basicConfig(level=logging.DEBUG, format="%(message)s")
+logger = logging.getLogger(__name__)
+
+
+class TestColorResolverExtensions(unittest.TestCase):
+    def test_short_hex_colors(self):
+        self.assertColorEqual(
+            resolve_color("#F00"), "extended-srgb:1.00000,0.00000,0.00000,1.00000"
+        )
+        self.assertColorEqual(
+            resolve_color("#0F0"), "extended-srgb:0.00000,1.00000,0.00000,1.00000"
+        )
+        self.assertColorEqual(
+            resolve_color("#00F"), "extended-srgb:0.00000,0.00000,1.00000,1.00000"
+        )
+        self.assertColorEqual(
+            resolve_color("#FFF"), "extended-srgb:1.00000,1.00000,1.00000,1.00000"
+        )
+        self.assertColorEqual(
+            resolve_color("#808"), "extended-srgb:0.53333,0.00000,0.53333,1.00000"
+        )
+
+    def test_short_hex_with_alpha(self):
+        self.assertColorEqual(
+            resolve_color("#F008"), "extended-srgb:1.00000,0.00000,0.00000,0.53333"
+        )
+        self.assertColorEqual(
+            resolve_color("#0000"), "extended-srgb:0.00000,0.00000,0.00000,0.00000"
+        )
+
+    def test_hsl_colors(self):
+        self.assertColorEqual(
+            resolve_color("hsl(0, 100%, 50%)"),
+            "extended-srgb:1.00000,0.00000,0.00000,1.00000",
+        )
+        self.assertColorEqual(
+            resolve_color("hsl(120, 100%, 50%)"),
+            "extended-srgb:0.00000,1.00000,0.00000,1.00000",
+        )
+        self.assertColorEqual(
+            resolve_color("hsl(240, 100%, 50%)"),
+            "extended-srgb:0.00000,0.00000,1.00000,1.00000",
+        )
+        self.assertColorEqual(
+            resolve_color("hsl(0, 0%, 50%)"),
+            "extended-srgb:0.50000,0.50000,0.50000,1.00000",
+        )
+
+    def test_hsla_colors(self):
+        self.assertColorEqual(
+            resolve_color("hsla(0, 100%, 50%, 0.5)"),
+            "extended-srgb:1.00000,0.00000,0.00000,0.50000",
+        )
+        self.assertColorEqual(
+            resolve_color("hsla(120, 100%, 50%, 0.5)"),
+            "extended-srgb:0.00000,1.00000,0.00000,0.50000",
+        )
+
+    def test_hsl_without_percent(self):
+        self.assertColorEqual(
+            resolve_color("hsl(0, 100, 50)"),
+            "extended-srgb:1.00000,0.00000,0.00000,1.00000",
+        )
+
+    def assertColorEqual(self, actual, expected):
+        if actual.startswith("extended-srgb:"):
+            actual = actual.replace("extended-srgb:", "")
+        elif actual.startswith("extended-gray:"):
+            actual = actual.replace("extended-gray:", "")
+        else:
+            self.fail(f"Unexpected color format: {actual}")
+        if expected.startswith("extended-srgb:"):
+            expected = expected.replace("extended-srgb:", "")
+        elif expected.startswith("extended-gray:"):
+            expected = expected.replace("extended-gray:", "")
+        actual_parts = actual.split(",")
+        expected_parts = expected.split(",")
+        self.assertEqual(len(actual_parts), len(expected_parts))
+        for a, e in zip(actual_parts, expected_parts):
+            self.assertAlmostEqual(float(a), float(e), places=4)
+
+
+class TestValidators(unittest.TestCase):
+    def test_validate_scale_valid(self):
+        self.assertEqual(_validate_scale(1.0), 1.0)
+        self.assertEqual(_validate_scale(0.5), 0.5)
+        self.assertEqual(_validate_scale(2.0), 2.0)
+
+    def test_validate_scale_invalid(self):
+        with self.assertRaises(ValueError):
+            _validate_scale(0)
+        with self.assertRaises(ValueError):
+            _validate_scale(-1)
+        with self.assertRaises(ValueError):
+            _validate_scale(2.1)
+        with self.assertRaises(ValueError):
+            _validate_scale(5)
+
+    def test_validate_translucency_valid(self):
+        self.assertEqual(_validate_translucency(0.0), 0.0)
+        self.assertEqual(_validate_translucency(0.5), 0.5)
+        self.assertEqual(_validate_translucency(1.0), 1.0)
+
+    def test_validate_translucency_invalid(self):
+        with self.assertRaises(ValueError):
+            _validate_translucency(-0.1)
+        with self.assertRaises(ValueError):
+            _validate_translucency(1.1)
+        with self.assertRaises(ValueError):
+            _validate_translucency(2)
+
+    def test_validate_blend_mode_valid(self):
+        self.assertEqual(_validate_blend_mode("plus-darker"), "plus-darker")
+        self.assertEqual(_validate_blend_mode("multiply"), "multiply")
+        self.assertEqual(_validate_blend_mode("screen"), "screen")
+
+    def test_validate_blend_mode_invalid(self):
+        with self.assertRaises(ValueError):
+            _validate_blend_mode("invalid-mode")
+        with self.assertRaises(ValueError):
+            _validate_blend_mode("")
+
+    def test_validate_shadow_kind_valid(self):
+        self.assertEqual(_validate_shadow_kind("neutral"), "neutral")
+        self.assertEqual(_validate_shadow_kind("color"), "color")
+
+    def test_validate_shadow_kind_invalid(self):
+        with self.assertRaises(ValueError):
+            _validate_shadow_kind("invalid")
+        with self.assertRaises(ValueError):
+            _validate_shadow_kind("")
+
+    def test_validate_shadow_opacity_valid(self):
+        self.assertEqual(_validate_shadow_opacity(0.0), 0.0)
+        self.assertEqual(_validate_shadow_opacity(0.5), 0.5)
+        self.assertEqual(_validate_shadow_opacity(1.0), 1.0)
+
+    def test_validate_shadow_opacity_invalid(self):
+        with self.assertRaises(ValueError):
+            _validate_shadow_opacity(-0.1)
+        with self.assertRaises(ValueError):
+            _validate_shadow_opacity(1.1)
+
+
+class TestIconEditor(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.svg_path = os.path.join(self.temp_dir, "test.svg")
+        with open(self.svg_path, "w") as f:
+            f.write(
+                '<svg xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="40"/></svg>'
+            )
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
+
+    def test_create_new(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+
+        self.assertTrue(os.path.exists(icon_path))
+        self.assertTrue(os.path.exists(os.path.join(icon_path, "icon.json")))
+        self.assertTrue(os.path.exists(os.path.join(icon_path, "Assets")))
+
+        json_path = os.path.join(icon_path, "icon.json")
+        with open(json_path) as f:
+            data = json.load(f)
+        self.assertIn("fill", data)
+        self.assertIn("automatic-gradient", data["fill"])
+
+    def test_load_existing(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        IconEditor.create_new(icon_path, "green")
+
+        loaded = IconEditor.load(icon_path)
+        self.assertIsNotNone(loaded.icon_data)
+        self.assertEqual(loaded.icon_dir, icon_path)
+
+    def test_load_nonexistent(self):
+        with self.assertRaises(FileNotFoundError):
+            IconEditor.load("/nonexistent/path")
+
+    def test_load_missing_json(self):
+        icon_path = os.path.join(self.temp_dir, "empty.icon")
+        os.makedirs(icon_path)
+        with self.assertRaises(FileNotFoundError):
+            IconEditor.load(icon_path)
+
+    def test_add_svg_layer(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle", "red")
+
+        layers = icon.get_layers()
+        self.assertEqual(len(layers), 1)
+        self.assertEqual(layers[0]["name"], "circle")
+        self.assertIn("circle.svg", layers[0]["image-name"])
+
+    def test_add_svg_layer_with_glass(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle", glass=True)
+
+        layers = icon.get_layers()
+        self.assertTrue(layers[0].get("glass"))
+
+    def test_add_svg_layer_with_blend_mode(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle", blend_mode="plus-darker")
+
+        layers = icon.get_layers()
+        self.assertEqual(layers[0].get("blend-mode"), "plus-darker")
+
+    def test_add_svg_layer_invalid_blend_mode(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        with self.assertRaises(ValueError):
+            icon.add_svg_layer(self.svg_path, "circle", blend_mode="invalid-mode")
+
+    def test_add_svg_layer_invalid_path(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        with self.assertRaises(FileNotFoundError):
+            icon.add_svg_layer("/nonexistent.svg", "circle")
+
+    def test_scale_shift_layer(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.scale_shift_layer("circle", 0.5, 10, 20)
+
+        layers = icon.get_layers()
+        self.assertEqual(layers[0]["position"]["scale"], 0.5)
+        self.assertEqual(layers[0]["position"]["translation-in-points"], [10, 20])
+
+    def test_scale_shift_layer_invalid_scale(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        with self.assertRaises(ValueError):
+            icon.scale_shift_layer("circle", 3.0, 10, 20)
+
+    def test_change_gradient(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.change_gradient("circle", "solid", "extended-srgb:1.0,0.0,0.0,1.0")
+
+        layers = icon.get_layers()
+        self.assertIn("solid", layers[0]["fill"])
+
+    def test_change_translucency(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.change_translucency("", 0.5)
+
+        groups = icon.get_groups()
+        self.assertEqual(groups[0]["translucency"]["value"], 0.5)
+
+    def test_change_translucency_invalid(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        with self.assertRaises(ValueError):
+            icon.change_translucency("", 1.5)
+
+    def test_set_shadow(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.set_shadow("", "neutral", 0.5)
+
+        groups = icon.get_groups()
+        self.assertEqual(groups[0]["shadow"]["kind"], "neutral")
+        self.assertEqual(groups[0]["shadow"]["opacity"], 0.5)
+
+    def test_set_shadow_with_color(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.set_shadow("", "color", 0.5, "red")
+
+        groups = icon.get_groups()
+        self.assertEqual(groups[0]["shadow"]["kind"], "color")
+        self.assertIn("color", groups[0]["shadow"])
+
+    def test_set_shadow_invalid_kind(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        with self.assertRaises(ValueError):
+            icon.set_shadow("", "invalid", 0.5)
+
+    def test_set_shadow_invalid_opacity(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        with self.assertRaises(ValueError):
+            icon.set_shadow("", "neutral", 1.5)
+
+    def test_remove_layer(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.add_svg_layer(self.svg_path, "square")
+        icon.remove_layer("circle")
+
+        layers = icon.get_layers()
+        self.assertEqual(len(layers), 1)
+        self.assertEqual(layers[0]["name"], "square")
+
+    def test_reorder_layer(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.add_svg_layer(self.svg_path, "square")
+        icon.add_svg_layer(self.svg_path, "triangle")
+
+        icon.reorder_layer("triangle", 0)
+
+        layers = icon.get_layers()
+        self.assertEqual(layers[0]["name"], "triangle")
+        self.assertEqual(layers[1]["name"], "circle")
+        self.assertEqual(layers[2]["name"], "square")
+
+    def test_uninitialized_access(self):
+        icon = IconEditor()
+        with self.assertRaises(RuntimeError):
+            icon.add_svg_layer(self.svg_path, "circle")
+
+    def test_multiple_groups(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.icon_data["groups"].append({"name": "Second", "layers": []})
+
+        groups = icon.get_groups()
+        self.assertEqual(len(groups), 2)
+        self.assertEqual(groups[0]["layers"][0]["name"], "circle")
+        self.assertEqual(groups[1]["name"], "Second")
+
+
+class TestIconEditorIntegration(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.svg_path = os.path.join(self.temp_dir, "test.svg")
+        with open(self.svg_path, "w") as f:
+            f.write(
+                '<svg xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="40"/></svg>'
+            )
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
+
+    def test_full_workflow(self):
+        icon_path = os.path.join(self.temp_dir, "workflow.icon")
+
+        icon = IconEditor.create_new(icon_path, "#FF0000")
+        icon.add_svg_layer(
+            self.svg_path, "circle", "blue", glass=True, blend_mode="plus-darker"
+        )
+        icon.scale_shift_layer("circle", 0.8, 10, -5)
+        icon.change_translucency("", 0.3)
+        icon.set_shadow("", "neutral", 0.4)
+        icon.save()
+
+        loaded = IconEditor.load(icon_path)
+        layers = loaded.get_layers()
+        groups = loaded.get_groups()
+
+        self.assertEqual(len(layers), 1)
+        self.assertEqual(layers[0]["name"], "circle")
+        self.assertTrue(layers[0].get("glass"))
+        self.assertEqual(layers[0].get("blend-mode"), "plus-darker")
+        self.assertEqual(layers[0]["position"]["scale"], 0.8)
+        self.assertEqual(groups[0]["translucency"]["value"], 0.3)
+        self.assertEqual(groups[0]["shadow"]["kind"], "neutral")
+
+
+if __name__ == "__main__":
+    unittest.main()

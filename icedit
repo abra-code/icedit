@@ -1,0 +1,222 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+from icon_editor import IconEditor, resolve_color, validate_icon, generate_variants
+from icon_editor.core import APPLE_COLORS, CRAYONS_COLORS, WEB_COLORS
+
+
+def main():
+    parser = argparse.ArgumentParser(description="icedit - Icon Composer Editor")
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    create_parser = subparsers.add_parser("create", help="Create a new icon")
+    create_parser.add_argument("icon_path", help="Path to the new.icon")
+    create_parser.add_argument("background_color", help="Main color for automatic gradient")
+
+    add_svg_parser = subparsers.add_parser("add_svg", help="Add SVG layer")
+    add_svg_parser.add_argument("icon_path", help="Path to the icon")
+    add_svg_parser.add_argument("svg_path", help="Path to SVG file")
+    add_svg_parser.add_argument("layer_name", help="Name of the layer")
+    add_svg_parser.add_argument("--color", help="Optional color for gradient")
+    add_svg_parser.add_argument(
+        "--glass", action="store_true", help="Enable glass effect"
+    )
+    add_svg_parser.add_argument(
+        "--blend-mode", help="Blend mode (e.g., plus-darker, multiply)"
+    )
+
+    scale_shift_parser = subparsers.add_parser(
+        "scale_shift", help="Scale and shift layer"
+    )
+    scale_shift_parser.add_argument("icon_path", help="Path to the icon")
+    scale_shift_parser.add_argument("layer_name", help="Name of the layer")
+    scale_shift_parser.add_argument("scale", type=float, help="Scale factor")
+    scale_shift_parser.add_argument("shift_x", type=int, help="Shift in X")
+    scale_shift_parser.add_argument("shift_y", type=int, help="Shift in Y")
+
+    change_gradient_parser = subparsers.add_parser(
+        "change_gradient", help="Change gradient"
+    )
+    change_gradient_parser.add_argument("icon_path", help="Path to the icon")
+    change_gradient_parser.add_argument("layer_name", help="Name of the layer")
+    change_gradient_parser.add_argument(
+        "gradient_type", choices=["solid", "auto", "custom"], help="Gradient type"
+    )
+    change_gradient_parser.add_argument("color1", help="First color")
+    change_gradient_parser.add_argument(
+        "--color2", help="Second color for custom gradient"
+    )
+
+    change_translucency_parser = subparsers.add_parser(
+        "change_translucency", help="Change translucency"
+    )
+    change_translucency_parser.add_argument("icon_path", help="Path to the icon")
+    change_translucency_parser.add_argument("group_name", help="Name of the group")
+    change_translucency_parser.add_argument(
+        "translucency", type=float, help="Translucency (0.0-1.0)"
+    )
+
+    set_shadow_parser = subparsers.add_parser("set_shadow", help="Set shadow on group")
+    set_shadow_parser.add_argument("icon_path", help="Path to the icon")
+    set_shadow_parser.add_argument("group_name", help="Name of the group")
+    set_shadow_parser.add_argument(
+        "kind", choices=["neutral", "color"], help="Shadow kind"
+    )
+    set_shadow_parser.add_argument(
+        "opacity", type=float, help="Shadow opacity (0.0-1.0)"
+    )
+    set_shadow_parser.add_argument("--color", help="Shadow color (for kind=color)")
+
+    validate_parser = subparsers.add_parser(
+        "validate", help="Validate icon by exporting PNGs"
+    )
+    validate_parser.add_argument("icon_path", help="Path to the icon")
+    validate_parser.add_argument("--output", "-o", help="Output directory for PNGs")
+
+    variants_parser = subparsers.add_parser(
+        "variants", help="Generate icon variants for different platforms"
+    )
+    variants_parser.add_argument("icon_path", help="Path to the icon")
+    variants_parser.add_argument("--output", "-o", help="Output directory for variants")
+
+    colors_parser = subparsers.add_parser(
+        "colors", help="List all supported color specifications and named colors"
+    )
+
+    args = parser.parse_args()
+
+    if not args.command:
+        parser.print_help()
+        return
+
+    if args.command == "colors":
+        def rgb_to_hex(rgb_str):
+            parts = rgb_str.split(",")
+            return "#" + "".join(f"{round(float(v) * 255):02x}" for v in parts)
+
+        print("Supported color formats:")
+        print("  - Named colors: blue, red, green, etc. (see palettes below)")
+        print("  - Prefixed colors: apple.name, crayons.name, web.name")
+        print("  - HEX colors: #RGB or #RRGGBB (e.g., #F00, #FF0000)")
+        print("  - HEX with alpha: #RGBA or #RRGGBBAA (e.g., #F008, #FF000080)")
+        print("  - RGB/RGBA colors: rgb(r, g, b) or rgba(r, g, b, a)")
+        print("    (values 0-255 or 0.0-1.0, e.g., rgb(255, 0, 0) or rgba(255, 0, 0, 0.5))")
+        print("  - HSL/HSLA colors: hsl(H, S%, L%) or hsla(H, S%, L%, A)")
+        print()
+        print("Color name resolution (when no prefix is specified):")
+        print("  1. Apple palette (default)")
+        print("  2. Crayons palette")
+        print("  3. Web palette")
+        print()
+        print("WARNING: Many color names have different values in different palettes.")
+        print("Use explicit prefixes (apple.blue, web.blue, crayons.blue) for consistent results.")
+        print()
+        print("Conflicting color names (Apple vs Web - different values):")
+        conflicts = ["blue", "red", "green", "orange", "brown", "cyan", "magenta", "purple", "yellow"]
+        for name in conflicts:
+            print(f"  {name}: apple={rgb_to_hex(APPLE_COLORS[name])}, web={rgb_to_hex(WEB_COLORS[name])}")
+        print()
+        print(f"Apple palette ({len(APPLE_COLORS)} colors):")
+        for name in sorted(APPLE_COLORS.keys()):
+            print(f"  apple.{name}  {rgb_to_hex(APPLE_COLORS[name])}")
+        print()
+        print(f"Crayons palette ({len(CRAYONS_COLORS)} colors):")
+        for name in sorted(CRAYONS_COLORS.keys()):
+            print(f"  crayons.{name}  {rgb_to_hex(CRAYONS_COLORS[name])}")
+        print()
+        print(f"Web palette ({len(WEB_COLORS)} colors):")
+        for name in sorted(WEB_COLORS.keys()):
+            print(f"  web.{name}  {rgb_to_hex(WEB_COLORS[name])}")
+        return
+
+    icon_path = args.icon_path
+
+    if args.command == "create":
+        if os.path.exists(icon_path):
+            print(f"Icon {icon_path} already exists")
+            return
+        icon = IconEditor.create_new(icon_path, args.background_color)
+        print(f"Created icon {icon_path} with background {args.background_color}")
+        return
+
+    if not os.path.exists(icon_path):
+        print(f"Icon {icon_path} does not exist")
+        return
+
+    icon = IconEditor.load(icon_path)
+
+    if args.command == "add_svg":
+        icon.add_svg_layer(
+            args.svg_path,
+            args.layer_name,
+            args.color,
+            glass=args.glass,
+            blend_mode=args.blend_mode,
+        )
+        print(f"Added SVG layer {args.layer_name} to {icon_path}")
+    elif args.command == "scale_shift":
+        try:
+            icon.scale_shift_layer(
+                args.layer_name, args.scale, args.shift_x, args.shift_y
+            )
+            print(f"Scaled/shifted layer {args.layer_name} in {icon_path}")
+        except ValueError as e:
+            print(f"Error: {e}")
+    elif args.command == "change_gradient":
+        if args.gradient_type == "solid":
+            icon.change_gradient(args.layer_name, "solid", resolve_color(args.color1))
+        elif args.gradient_type == "auto":
+            icon.change_gradient(args.layer_name, "auto", resolve_color(args.color1))
+        else:
+            if not args.color2:
+                print("color2 required for custom gradient")
+                return
+            icon.change_gradient(
+                args.layer_name,
+                "custom",
+                resolve_color(args.color1),
+                resolve_color(args.color2),
+            )
+        print(f"Changed gradient for layer {args.layer_name} in {icon_path}")
+    elif args.command == "change_translucency":
+        try:
+            icon.change_translucency(args.group_name, args.translucency)
+            print(f"Changed translucency for group {args.group_name} in {icon_path}")
+        except ValueError as e:
+            print(f"Error: {e}")
+    elif args.command == "set_shadow":
+        try:
+            icon.set_shadow(args.group_name, args.kind, args.opacity, args.color)
+            print(f"Set shadow on group {args.group_name} in {icon_path}")
+        except ValueError as e:
+            print(f"Error: {e}")
+    elif args.command == "validate":
+        if not os.path.exists(icon_path):
+            print(f"Icon {icon_path} does not exist")
+            return
+        print(f"Validating icon {icon_path}...")
+        results = validate_icon(icon_path, args.output)
+        if results["valid"]:
+            print(f"Validation passed! Exported {len(results['exports'])} PNGs.")
+            for exp in results["exports"]:
+                print(
+                    f"  {exp['platform']}/{exp['rendition']}/{exp['size'][0]}x{exp['size'][1]}: {exp['output']}"
+                )
+        else:
+            print(f"Validation failed with {len(results['errors'])} errors:")
+            for err in results["errors"]:
+                print(f"  {err}")
+    elif args.command == "variants":
+        if not os.path.exists(icon_path):
+            print(f"Icon {icon_path} does not exist")
+            return
+        print(f"Generating variants for {icon_path}...")
+        variant_paths = generate_variants(icon_path, args.output)
+        print(f"Generated {len(variant_paths)} variants:")
+        for v in variant_paths:
+            print(f"  {v}")
+
+
+if __name__ == "__main__":
+    main()
