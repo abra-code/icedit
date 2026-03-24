@@ -39,17 +39,17 @@ def main():
     scale_shift_parser.add_argument("shift_x", type=int, help="Shift in X")
     scale_shift_parser.add_argument("shift_y", type=int, help="Shift in Y")
 
-    change_gradient_parser = subparsers.add_parser(
-        "change_gradient", help="Change gradient"
+    change_fill_parser = subparsers.add_parser(
+        "change_fill", help="Change layer fill"
     )
-    change_gradient_parser.add_argument("icon_path", help="Path to the icon")
-    change_gradient_parser.add_argument("layer_name", help="Name of the layer")
-    change_gradient_parser.add_argument(
-        "gradient_type", choices=["solid", "auto", "custom"], help="Gradient type"
+    change_fill_parser.add_argument("icon_path", help="Path to the icon")
+    change_fill_parser.add_argument("layer_name", help="Name of the layer")
+    change_fill_parser.add_argument(
+        "fill_type", choices=["none", "automatic", "solid", "auto-gradient", "gradient"], help="Fill type"
     )
-    change_gradient_parser.add_argument("color1", help="First color")
-    change_gradient_parser.add_argument(
-        "--color2", help="Second color for custom gradient"
+    change_fill_parser.add_argument("color1", nargs="?", default=None, help="First color")
+    change_fill_parser.add_argument(
+        "--color2", help="Second color for gradient"
     )
 
     change_translucency_parser = subparsers.add_parser(
@@ -170,22 +170,22 @@ def main():
             print(f"Scaled/shifted layer {args.layer_name} in {icon_path}")
         except ValueError as e:
             print(f"Error: {e}")
-    elif args.command == "change_gradient":
-        if args.gradient_type == "solid":
-            icon.change_gradient(args.layer_name, "solid", resolve_color(args.color1))
-        elif args.gradient_type == "auto":
-            icon.change_gradient(args.layer_name, "auto", resolve_color(args.color1))
+    elif args.command == "change_fill":
+        if args.fill_type in ("none", "automatic"):
+            icon.change_fill(args.layer_name, args.fill_type)
+        elif args.fill_type in ("solid", "auto-gradient"):
+            icon.change_fill(args.layer_name, args.fill_type, resolve_color(args.color1))
         else:
             if not args.color2:
-                print("color2 required for custom gradient")
+                print("color2 required for gradient fill")
                 return
-            icon.change_gradient(
+            icon.change_fill(
                 args.layer_name,
-                "custom",
+                "gradient",
                 resolve_color(args.color1),
                 resolve_color(args.color2),
             )
-        print(f"Changed gradient for layer {args.layer_name} in {icon_path}")
+        print(f"Changed fill for layer {args.layer_name} in {icon_path}")
     elif args.command == "change_translucency":
         try:
             icon.change_translucency(args.group_name, args.translucency)

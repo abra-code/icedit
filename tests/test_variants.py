@@ -227,14 +227,14 @@ def _create_scale_shift(temp_dir: str, svg_path: str) -> IconEditor:
 def _create_solid_color(temp_dir: str, svg_path: str) -> IconEditor:
     icon = IconEditor.create_new(os.path.join(temp_dir, "solid_color.icon"), "blue")
     icon.add_svg_layer(svg_path, "shape")
-    icon.change_gradient("shape", "solid", "red")
+    icon.change_fill("shape", "solid", "red")
     return icon
 
 
 def _create_auto_gradient(temp_dir: str, svg_path: str) -> IconEditor:
     icon = IconEditor.create_new(os.path.join(temp_dir, "auto_gradient.icon"), "blue")
     icon.add_svg_layer(svg_path, "shape")
-    icon.change_gradient("shape", "auto", "purple")
+    icon.change_fill("shape", "auto-gradient", "purple")
     return icon
 
 
@@ -243,7 +243,7 @@ def _create_explicit_gradient(temp_dir: str, svg_path: str) -> IconEditor:
         os.path.join(temp_dir, "explicit_gradient.icon"), "blue"
     )
     icon.add_svg_layer(svg_path, "shape")
-    icon.change_gradient("shape", "custom", "red", "blue")
+    icon.change_fill("shape", "gradient", "red", "blue")
     return icon
 
 
@@ -253,7 +253,7 @@ def _create_bg_solid_layer_solid(temp_dir: str, svg_path: str) -> IconEditor:
     )
     icon.change_background_fill("solid", "orange")
     icon.add_svg_layer(svg_path, "shape")
-    icon.change_gradient("shape", "solid", "red")
+    icon.change_fill("shape", "solid", "red")
     return icon
 
 
@@ -261,9 +261,9 @@ def _create_bg_gradient_layer_solid(temp_dir: str, svg_path: str) -> IconEditor:
     icon = IconEditor.create_new(
         os.path.join(temp_dir, "bg_gradient_layer_solid.icon"), "green"
     )
-    icon.change_background_fill("custom", "purple", "orange")
+    icon.change_background_fill("gradient", "purple", "orange")
     icon.add_svg_layer(svg_path, "shape")
-    icon.change_gradient("shape", "solid", "red")
+    icon.change_fill("shape", "solid", "red")
     return icon
 
 
@@ -273,7 +273,7 @@ def _create_bg_solid_layer_gradient(temp_dir: str, svg_path: str) -> IconEditor:
     )
     icon.change_background_fill("solid", "blue")
     icon.add_svg_layer(svg_path, "shape")
-    icon.change_gradient("shape", "auto", "white")
+    icon.change_fill("shape", "auto-gradient", "white")
     return icon
 
 
@@ -281,9 +281,9 @@ def _create_bg_gradient_layer_gradient(temp_dir: str, svg_path: str) -> IconEdit
     icon = IconEditor.create_new(
         os.path.join(temp_dir, "bg_gradient_layer_gradient.icon"), "green"
     )
-    icon.change_background_fill("custom", "purple", "orange")
+    icon.change_background_fill("gradient", "purple", "orange")
     icon.add_svg_layer(svg_path, "shape")
-    icon.change_gradient("shape", "custom", "red", "blue")
+    icon.change_fill("shape", "gradient", "red", "blue")
     return icon
 
 

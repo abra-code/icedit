@@ -45,15 +45,15 @@ echo "Test 3: Scaling and shifting layer"
 python3 icedit scale_shift "/tmp/test_cli_icon.icon" circle 0.8 20 30
 echo "✓ Layer scaled and shifted"
 
-# Test 4: Change gradient to solid
-echo "Test 4: Changing gradient to solid"
-python3 icedit change_gradient "/tmp/test_cli_icon.icon" circle solid green
-echo "✓ Gradient changed to solid"
+# Test 4: Change fill to solid
+echo "Test 4: Changing fill to solid"
+python3 icedit change_fill "/tmp/test_cli_icon.icon" circle solid green
+echo "✓ Fill changed to solid"
 
-# Test 5: Change gradient to auto
-echo "Test 5: Changing gradient to auto"
-python3 icedit change_gradient "/tmp/test_cli_icon.icon" circle auto orange
-echo "✓ Gradient changed to auto"
+# Test 5: Change fill to auto-gradient
+echo "Test 5: Changing fill to auto-gradient"
+python3 icedit change_fill "/tmp/test_cli_icon.icon" circle auto-gradient orange
+echo "✓ Fill changed to auto-gradient"
 
 # Test 6: Change translucency
 echo "Test 6: Changing translucency"

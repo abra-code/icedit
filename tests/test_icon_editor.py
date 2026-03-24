@@ -83,6 +83,22 @@ class TestColorResolverExtensions(unittest.TestCase):
             "extended-srgb:1.00000,0.00000,0.00000,1.00000",
         )
 
+    def test_passthrough_display_p3(self):
+        color = "display-p3:1.00000,0.00000,0.00000,1.00000"
+        self.assertEqual(resolve_color(color), color)
+
+    def test_passthrough_srgb(self):
+        color = "srgb:0.00000,0.00000,1.00000,1.00000"
+        self.assertEqual(resolve_color(color), color)
+
+    def test_passthrough_extended_srgb(self):
+        color = "extended-srgb:0.50000,0.50000,0.50000,1.00000"
+        self.assertEqual(resolve_color(color), color)
+
+    def test_passthrough_extended_gray(self):
+        color = "extended-gray:0.75000,1.00000"
+        self.assertEqual(resolve_color(color), color)
+
     def assertColorEqual(self, actual, expected):
         if actual.startswith("extended-srgb:"):
             actual = actual.replace("extended-srgb:", "")
@@ -262,14 +278,107 @@ class TestIconEditor(unittest.TestCase):
         with self.assertRaises(ValueError):
             icon.scale_shift_layer("circle", 3.0, 10, 20)
 
-    def test_change_gradient(self):
+    def test_change_fill_solid(self):
         icon_path = os.path.join(self.temp_dir, "test.icon")
         icon = IconEditor.create_new(icon_path, "blue")
         icon.add_svg_layer(self.svg_path, "circle")
-        icon.change_gradient("circle", "solid", "extended-srgb:1.0,0.0,0.0,1.0")
+        icon.change_fill("circle", "solid", "extended-srgb:1.0,0.0,0.0,1.0")
 
         layers = icon.get_layers()
         self.assertIn("solid", layers[0]["fill"])
+
+    def test_change_fill_none(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.change_fill("circle", "none")
+
+        layers = icon.get_layers()
+        self.assertEqual(layers[0]["fill"], "none")
+
+    def test_change_fill_automatic(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.change_fill("circle", "automatic")
+
+        layers = icon.get_layers()
+        self.assertEqual(layers[0]["fill"], "automatic")
+
+    def test_change_fill_auto_gradient(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.change_fill("circle", "auto-gradient", "purple")
+
+        layers = icon.get_layers()
+        self.assertIn("automatic-gradient", layers[0]["fill"])
+
+    def test_change_fill_gradient(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.change_fill("circle", "gradient", "red", "blue")
+
+        layers = icon.get_layers()
+        fill = layers[0]["fill"]
+        self.assertIn("linear-gradient", fill)
+        self.assertIsInstance(fill["linear-gradient"], list)
+        self.assertEqual(len(fill["linear-gradient"]), 2)
+        self.assertIn("orientation", fill)
+
+    def test_change_fill_gradient_missing_color2(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        with self.assertRaises(ValueError):
+            icon.change_fill("circle", "gradient", "red")
+
+    def test_change_fill_solid_missing_color(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        with self.assertRaises(ValueError):
+            icon.change_fill("circle", "solid")
+
+    def test_change_background_fill_solid(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.change_background_fill("solid", "red")
+
+        self.assertIn("solid", icon.icon_data["fill"])
+
+    def test_change_background_fill_none(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.change_background_fill("none")
+
+        self.assertEqual(icon.icon_data["fill"], "none")
+
+    def test_change_background_fill_automatic(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.change_background_fill("automatic")
+
+        self.assertEqual(icon.icon_data["fill"], "automatic")
+
+    def test_change_background_fill_auto_gradient(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.change_background_fill("auto-gradient", "green")
+
+        self.assertIn("automatic-gradient", icon.icon_data["fill"])
+
+    def test_change_background_fill_gradient(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.change_background_fill("gradient", "red", "blue")
+
+        fill = icon.icon_data["fill"]
+        self.assertIn("linear-gradient", fill)
+        self.assertIsInstance(fill["linear-gradient"], list)
+        self.assertEqual(len(fill["linear-gradient"]), 2)
+        self.assertIn("orientation", fill)
 
     def test_change_translucency(self):
         icon_path = os.path.join(self.temp_dir, "test.icon")

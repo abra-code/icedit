@@ -297,7 +297,7 @@ def resolve_color(color_str: str) -> str:
     original = color_str
     color_str = color_str.strip().lower()
 
-    if color_str.startswith("extended-srgb:") or color_str.startswith("extended-gray:"):
+    if any(color_str.startswith(p) for p in ("extended-srgb:", "extended-gray:", "display-p3:", "srgb:")):
         return color_str
 
     prefix = None
@@ -576,28 +576,37 @@ class IconEditor:
                     break
         self.save()
 
-    def change_gradient(
+    def change_fill(
         self,
         layer_name: str,
-        gradient_type: str,
+        fill_type: str,
         color1: Optional[str] = None,
         color2: Optional[str] = None,
     ):
-        if gradient_type in ("solid", "auto") and not color1:
-            raise ValueError(f"color1 is required for gradient_type '{gradient_type}'")
-        if gradient_type == "custom" and (not color1 or not color2):
+        if fill_type in ("none", "automatic"):
+            for group in self.icon_data["groups"]:
+                for layer in group["layers"]:
+                    if layer["name"] == layer_name:
+                        layer["fill"] = fill_type
+                        break
+            self.save()
+            return
+
+        if fill_type in ("solid", "auto-gradient") and not color1:
+            raise ValueError(f"color1 is required for fill_type '{fill_type}'")
+        if fill_type == "gradient" and (not color1 or not color2):
             raise ValueError(
-                "color1 and color2 are required for gradient_type 'custom'"
+                "color1 and color2 are required for fill_type 'gradient'"
             )
 
         for group in self.icon_data["groups"]:
             for layer in group["layers"]:
                 if layer["name"] == layer_name:
-                    if gradient_type == "solid":
+                    if fill_type == "solid":
                         layer["fill"] = {"solid": resolve_color(color1)}  # type: ignore[arg-type]
-                    elif gradient_type == "auto":
+                    elif fill_type == "auto-gradient":
                         layer["fill"] = {"automatic-gradient": resolve_color(color1)}  # type: ignore[arg-type]
-                    elif gradient_type == "custom":
+                    elif fill_type == "gradient":
                         layer["fill"] = {
                             "linear-gradient": [
                                 resolve_color(color1),  # type: ignore[arg-type]
@@ -613,22 +622,27 @@ class IconEditor:
 
     def change_background_fill(
         self,
-        gradient_type: str,
+        fill_type: str,
         color1: Optional[str] = None,
         color2: Optional[str] = None,
     ):
-        if gradient_type in ("solid", "auto") and not color1:
-            raise ValueError(f"color1 is required for gradient_type '{gradient_type}'")
-        if gradient_type == "custom" and (not color1 or not color2):
+        if fill_type in ("none", "automatic"):
+            self.icon_data["fill"] = fill_type
+            self.save()
+            return
+
+        if fill_type in ("solid", "auto-gradient") and not color1:
+            raise ValueError(f"color1 is required for fill_type '{fill_type}'")
+        if fill_type == "gradient" and (not color1 or not color2):
             raise ValueError(
-                "color1 and color2 are required for gradient_type 'custom'"
+                "color1 and color2 are required for fill_type 'gradient'"
             )
 
-        if gradient_type == "solid":
+        if fill_type == "solid":
             self.icon_data["fill"] = {"solid": resolve_color(color1)}  # type: ignore[arg-type]
-        elif gradient_type == "auto":
+        elif fill_type == "auto-gradient":
             self.icon_data["fill"] = {"automatic-gradient": resolve_color(color1)}  # type: ignore[arg-type]
-        elif gradient_type == "custom":
+        elif fill_type == "gradient":
             self.icon_data["fill"] = {
                 "linear-gradient": [
                     resolve_color(color1),  # type: ignore[arg-type]
