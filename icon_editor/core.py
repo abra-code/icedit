@@ -687,6 +687,17 @@ class IconEditor:
         groups = self.icon_data.get("groups", [])
         if group_index < len(groups):
             layers = groups[group_index].get("layers", [])
+            # Find and remove the layer, cleaning up its SVG asset
+            for layer in layers:
+                if layer.get("name") == layer_name:
+                    image_name = layer.get("image-name")
+                    if image_name and self.icon_json_path:
+                        asset_path = os.path.join(
+                            os.path.dirname(self.icon_json_path), "Assets", image_name
+                        )
+                        if os.path.isfile(asset_path):
+                            os.remove(asset_path)
+                    break
             groups[group_index]["layers"] = [
                 l for l in layers if l.get("name") != layer_name
             ]

@@ -26,6 +26,10 @@ def main():
         "--blend-mode", help="Blend mode (e.g., plus-darker, multiply)"
     )
 
+    remove_parser = subparsers.add_parser("remove", help="Remove a layer")
+    remove_parser.add_argument("icon_path", help="Path to the icon")
+    remove_parser.add_argument("layer_name", help="Name of the layer to remove")
+
     scale_shift_parser = subparsers.add_parser(
         "scale_shift", help="Scale and shift layer"
     )
@@ -146,7 +150,10 @@ def main():
 
     icon = IconEditor.load(icon_path)
 
-    if args.command == "add_svg":
+    if args.command == "remove":
+        icon.remove_layer(args.layer_name)
+        print(f"Removed layer {args.layer_name} from {icon_path}")
+    elif args.command == "add_svg":
         icon.add_svg_layer(
             args.svg_path,
             args.layer_name,
