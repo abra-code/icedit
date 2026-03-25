@@ -456,8 +456,8 @@ def _hue_to_rgb(p: float, q: float, t: float) -> float:
 
 
 def _validate_scale(scale: float) -> float:
-    if not 0 < scale <= 2:
-        raise ValueError(f"Scale must be 0-2, got {scale}")
+    if scale <= 0:
+        raise ValueError(f"Scale must be positive, got {scale}")
     return scale
 
 
@@ -619,7 +619,7 @@ class IconEditor:
         svg_path: str,
         layer_name: Optional[str] = None,
         color: Optional[str] = None,
-        glass: bool = False,
+        glass: bool = True,
         blend_mode: Optional[str] = None,
         auto_scale: bool = False,
     ):
@@ -655,11 +655,10 @@ class IconEditor:
             "name": layer_name,
             "image-name": asset_name,
             "position": {"scale": scale, "translation-in-points": [0, 0]},
+            "glass": glass,
         }
         if color:
             layer["fill"] = {"automatic-gradient": resolve_color(color)}
-        if glass:
-            layer["glass"] = True
         if blend_mode:
             layer["blend-mode"] = blend_mode
 
@@ -674,7 +673,7 @@ class IconEditor:
         self,
         image_path: str,
         layer_name: Optional[str] = None,
-        glass: bool = False,
+        glass: bool = True,
         blend_mode: Optional[str] = None,
         auto_scale: bool = False,
     ):
@@ -724,13 +723,12 @@ class IconEditor:
         layer: Dict[str, Any] = {
             "name": layer_name,
             "image-name": asset_name,
+            "glass": glass,
         }
         if auto_scale:
             w, h = self._get_image_dimensions(image_path)
             scale = self._compute_auto_scale(w, h)
             layer["position"] = {"scale": scale, "translation-in-points": [0, 0]}
-        if glass:
-            layer["glass"] = True
         if blend_mode:
             layer["blend-mode"] = blend_mode
 
@@ -759,6 +757,32 @@ class IconEditor:
                         layer["hidden"] = True
                     elif "hidden" in layer:
                         del layer["hidden"]
+                    break
+        self.save()
+
+    def set_glass(self, layer_name: str, glass: bool):
+        """Set or unset glass effect on a layer."""
+        for group in self.icon_data["groups"]:
+            for layer in group["layers"]:
+                if layer["name"] == layer_name:
+                    if glass:
+                        layer["glass"] = True
+                    elif "glass" in layer:
+                        del layer["glass"]
+                    break
+        self.save()
+
+    def set_blend_mode(self, layer_name: str, blend_mode: str):
+        """Set blend mode on a layer. Use 'normal' to remove."""
+        if blend_mode != "normal":
+            _validate_blend_mode(blend_mode)
+        for group in self.icon_data["groups"]:
+            for layer in group["layers"]:
+                if layer["name"] == layer_name:
+                    if blend_mode == "normal":
+                        layer.pop("blend-mode", None)
+                    else:
+                        layer["blend-mode"] = blend_mode
                     break
         self.save()
 
@@ -843,35 +867,42 @@ class IconEditor:
 
     def change_translucency(self, group_name: str, translucency: float):
         _validate_translucency(translucency)
+        target = None
         for group in self.icon_data["groups"]:
             if group.get("name") == group_name:
-                group["translucency"] = {"enabled": True, "value": translucency}
+                target = group
                 break
-        else:
-            if len(self.icon_data["groups"]) == 1:
-                self.icon_data["groups"][0]["translucency"] = {
-                    "enabled": True,
-                    "value": translucency,
-                }
+        if target is None and len(self.icon_data["groups"]) == 1:
+            target = self.icon_data["groups"][0]
+        if target is not None:
+            if translucency >= 1.0:
+                target.pop("translucency", None)
+            else:
+                target["translucency"] = {"enabled": True, "value": translucency}
         self.save()
 
     def set_shadow(
         self, group_name: str, kind: str, opacity: float, color: Optional[str] = None
     ):
-        _validate_shadow_kind(kind)
-        _validate_shadow_opacity(opacity)
+        if kind != "none":
+            _validate_shadow_kind(kind)
+            _validate_shadow_opacity(opacity)
 
-        shadow: Dict[str, Any] = {"kind": kind, "opacity": opacity}
-        if color:
-            shadow["color"] = resolve_color(color)
-
+        target = None
         for group in self.icon_data["groups"]:
             if group.get("name") == group_name:
-                group["shadow"] = shadow
+                target = group
                 break
-        else:
-            if len(self.icon_data["groups"]) == 1:
-                self.icon_data["groups"][0]["shadow"] = shadow
+        if target is None and len(self.icon_data["groups"]) == 1:
+            target = self.icon_data["groups"][0]
+        if target is not None:
+            if kind == "none":
+                target.pop("shadow", None)
+            else:
+                shadow: Dict[str, Any] = {"kind": kind, "opacity": opacity}
+                if color:
+                    shadow["color"] = resolve_color(color)
+                target["shadow"] = shadow
         self.save()
 
     def get_groups(self) -> List[Dict[str, Any]]:

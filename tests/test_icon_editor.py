@@ -133,10 +133,9 @@ class TestValidators(unittest.TestCase):
             _validate_scale(0)
         with self.assertRaises(ValueError):
             _validate_scale(-1)
-        with self.assertRaises(ValueError):
-            _validate_scale(2.1)
-        with self.assertRaises(ValueError):
-            _validate_scale(5)
+        # Large scales are allowed (SVGs can be tiny font glyphs)
+        _validate_scale(100)
+        _validate_scale(1000)
 
     def test_validate_translucency_valid(self):
         self.assertEqual(_validate_translucency(0.0), 0.0)
@@ -379,7 +378,7 @@ class TestIconEditor(unittest.TestCase):
         icon = IconEditor.create_new(icon_path, "blue")
         icon.add_svg_layer(self.svg_path, "circle")
         with self.assertRaises(ValueError):
-            icon.scale_shift_layer("circle", 3.0, 10, 20)
+            icon.scale_shift_layer("circle", -1.0, 10, 20)
 
     def test_change_fill_solid(self):
         icon_path = os.path.join(self.temp_dir, "test.icon")
