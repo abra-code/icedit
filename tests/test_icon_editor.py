@@ -22,6 +22,11 @@ from icon_editor.core import (
 logging.basicConfig(level=logging.DEBUG, format="%(message)s")
 logger = logging.getLogger(__name__)
 
+EXAMPLES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "IconExamples")
+TEST_PNG = os.path.join(EXAMPLES_DIR, "Hat-png.icon", "Assets", "magic-hat.png")
+TEST_JPEG = os.path.join(EXAMPLES_DIR, "Sunflower-jpeg.icon", "Assets", "sunflower.jpg")
+TEST_TIFF = os.path.join(EXAMPLES_DIR, "abracode.tiff")
+
 
 class TestColorResolverExtensions(unittest.TestCase):
     def test_short_hex_colors(self):
@@ -261,6 +266,104 @@ class TestIconEditor(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             icon.add_svg_layer("/nonexistent.svg", "circle")
 
+    def test_add_svg_layer_auto_name(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        name = icon.add_svg_layer(self.svg_path)
+
+        self.assertEqual(name, "test")
+        layers = icon.get_layers()
+        self.assertEqual(layers[0]["name"], "test")
+        self.assertEqual(layers[0]["image-name"], "test.svg")
+
+    def test_add_svg_layer_auto_name_dedup(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        name1 = icon.add_svg_layer(self.svg_path)
+        name2 = icon.add_svg_layer(self.svg_path)
+        name3 = icon.add_svg_layer(self.svg_path)
+
+        self.assertEqual(name1, "test")
+        self.assertEqual(name2, "test.1")
+        self.assertEqual(name3, "test.2")
+        layers = icon.get_layers()
+        self.assertEqual(len(layers), 3)
+
+    def test_add_svg_layer_explicit_name_dedup(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        name1 = icon.add_svg_layer(self.svg_path, "circle")
+        name2 = icon.add_svg_layer(self.svg_path, "circle")
+
+        self.assertEqual(name1, "circle")
+        self.assertEqual(name2, "circle.1")
+
+    def test_add_layer_asset_file_conflict(self):
+        """Adding an image with the same base name as an existing SVG layer
+        should get a deduplicated name even though the extensions differ."""
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        svg_name = icon.add_svg_layer(self.svg_path, "shape")
+        self.assertEqual(svg_name, "shape")
+
+        img_name = icon.add_image_layer(TEST_PNG, "shape")
+        # Layer name should be deduplicated since "shape" is taken
+        self.assertEqual(img_name, "shape.1")
+        # Both asset files should exist without overwriting
+        self.assertTrue(os.path.isfile(os.path.join(icon_path, "Assets", "shape.svg")))
+        self.assertTrue(os.path.isfile(os.path.join(icon_path, "Assets", "shape.1.png")))
+
+    def test_add_image_layer_png(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+
+        name = icon.add_image_layer(TEST_PNG)
+
+        self.assertEqual(name, "magic-hat")
+        layers = icon.get_layers()
+        self.assertEqual(layers[0]["name"], "magic-hat")
+        self.assertEqual(layers[0]["image-name"], "magic-hat.png")
+        self.assertNotIn("fill", layers[0])
+        self.assertTrue(os.path.isfile(os.path.join(icon_path, "Assets", "magic-hat.png")))
+
+    def test_add_image_layer_with_name(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+
+        name = icon.add_image_layer(TEST_PNG, "my-layer")
+
+        self.assertEqual(name, "my-layer")
+        layers = icon.get_layers()
+        self.assertEqual(layers[0]["image-name"], "my-layer.png")
+
+    def test_add_image_layer_invalid_path(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        with self.assertRaises(FileNotFoundError):
+            icon.add_image_layer("/nonexistent.png")
+
+    def test_add_image_layer_tiff_converts_to_png(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+
+        name = icon.add_image_layer(TEST_TIFF)
+
+        self.assertEqual(name, "abracode")
+        layers = icon.get_layers()
+        self.assertEqual(layers[0]["image-name"], "abracode.png")
+        asset = os.path.join(icon_path, "Assets", "abracode.png")
+        self.assertTrue(os.path.isfile(asset))
+
+    def test_add_image_layer_jpeg(self):
+        """JPEG files should be embedded as-is with .jpg extension."""
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+
+        name = icon.add_image_layer(TEST_JPEG)
+        layers = icon.get_layers()
+        self.assertEqual(layers[0]["image-name"], "sunflower.jpg")
+        self.assertTrue(os.path.isfile(os.path.join(icon_path, "Assets", "sunflower.jpg")))
+
     def test_scale_shift_layer(self):
         icon_path = os.path.join(self.temp_dir, "test.icon")
         icon = IconEditor.create_new(icon_path, "blue")
@@ -445,11 +548,13 @@ class TestIconEditor(unittest.TestCase):
         icon.add_svg_layer(self.svg_path, "square")
         icon.add_svg_layer(self.svg_path, "triangle")
 
-        icon.reorder_layer("triangle", 0)
+        # After insert-at-top, initial order is: triangle, square, circle
+        # Move circle to position 0
+        icon.reorder_layer("circle", 0)
 
         layers = icon.get_layers()
-        self.assertEqual(layers[0]["name"], "triangle")
-        self.assertEqual(layers[1]["name"], "circle")
+        self.assertEqual(layers[0]["name"], "circle")
+        self.assertEqual(layers[1]["name"], "triangle")
         self.assertEqual(layers[2]["name"], "square")
 
     def test_uninitialized_access(self):

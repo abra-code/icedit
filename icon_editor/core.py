@@ -5,6 +5,8 @@ import logging
 import os
 import re
 import shutil
+import subprocess
+import xml.etree.ElementTree as ET
 from typing import Any, Dict, List, Optional, Tuple
 
 logging.basicConfig(level=logging.WARNING)
@@ -525,13 +527,101 @@ class IconEditor:
             instance.icon_data = json.load(f)
         return instance
 
+    AUTO_SCALE_TARGET = 768
+
+    @staticmethod
+    def _get_svg_dimensions(svg_path: str) -> Tuple[float, float]:
+        """Return (width, height) of an SVG from width/height attrs or viewBox."""
+        try:
+            tree = ET.parse(svg_path)
+            root = tree.getroot()
+            ns = ""
+            if root.tag.startswith("{"):
+                ns = root.tag.split("}")[0] + "}"
+            tag = root.tag.replace(ns, "")
+            if tag != "svg":
+                return (0, 0)
+            w = root.get("width", "")
+            h = root.get("height", "")
+            if w and h:
+                try:
+                    return (float(w.replace("px", "")), float(h.replace("px", "")))
+                except ValueError:
+                    pass
+            vb = root.get("viewBox", "")
+            if vb:
+                parts = vb.replace(",", " ").split()
+                if len(parts) == 4:
+                    try:
+                        return (float(parts[2]), float(parts[3]))
+                    except ValueError:
+                        pass
+        except ET.ParseError:
+            pass
+        return (0, 0)
+
+    @staticmethod
+    def _get_image_dimensions(image_path: str) -> Tuple[int, int]:
+        """Return (width, height) of a raster image using sips."""
+        try:
+            result = subprocess.run(
+                ["sips", "-g", "pixelWidth", "-g", "pixelHeight", image_path],
+                capture_output=True, text=True,
+            )
+            if result.returncode == 0:
+                w = h = 0
+                for line in result.stdout.splitlines():
+                    if "pixelWidth" in line:
+                        w = int(line.split(":")[-1].strip())
+                    elif "pixelHeight" in line:
+                        h = int(line.split(":")[-1].strip())
+                return (w, h)
+        except Exception:
+            pass
+        return (0, 0)
+
+    @classmethod
+    def _compute_auto_scale(cls, width: float, height: float) -> float:
+        """Compute scale factor so longest dimension maps to AUTO_SCALE_TARGET."""
+        longest = max(width, height)
+        if longest <= 0:
+            return cls.AUTO_SCALE_TARGET / 1024.0
+        return cls.AUTO_SCALE_TARGET / longest
+
+    def _unique_layer_name(self, base_name: str, asset_ext: str = "") -> str:
+        """Return a layer name unique across all groups and asset files.
+        If base_name is taken, tries base_name.1, base_name.2, etc.
+        asset_ext (e.g. '.svg', '.png') is checked against existing files in Assets/."""
+        existing_names = set()
+        for group in self.icon_data.get("groups", []):
+            for layer in group.get("layers", []):
+                existing_names.add(layer.get("name", ""))
+        existing_assets = set()
+        if self.assets_dir and os.path.isdir(self.assets_dir):
+            existing_assets = set(os.listdir(self.assets_dir))
+
+        def _is_available(name: str) -> bool:
+            if name in existing_names:
+                return False
+            if asset_ext and f"{name}{asset_ext}" in existing_assets:
+                return False
+            return True
+
+        if _is_available(base_name):
+            return base_name
+        n = 1
+        while not _is_available(f"{base_name}.{n}"):
+            n += 1
+        return f"{base_name}.{n}"
+
     def add_svg_layer(
         self,
         svg_path: str,
-        layer_name: str,
+        layer_name: Optional[str] = None,
         color: Optional[str] = None,
         glass: bool = False,
         blend_mode: Optional[str] = None,
+        auto_scale: bool = False,
     ):
         if not os.path.exists(svg_path):
             raise FileNotFoundError(f"SVG file not found: {svg_path}")
@@ -542,6 +632,12 @@ class IconEditor:
                 "Icon not initialized. Use create_new() or load() first."
             )
 
+        if not layer_name:
+            base = os.path.splitext(os.path.basename(svg_path))[0]
+            layer_name = self._unique_layer_name(base, ".svg")
+        else:
+            layer_name = self._unique_layer_name(layer_name, ".svg")
+
         asset_name = f"{layer_name}.svg"
         asset_path = os.path.join(self.assets_dir, asset_name)
         shutil.copy(svg_path, asset_path)
@@ -549,10 +645,16 @@ class IconEditor:
         if not self.icon_data["groups"]:
             self.icon_data["groups"].append({"layers": []})
 
+        if auto_scale:
+            w, h = self._get_svg_dimensions(svg_path)
+            scale = self._compute_auto_scale(w, h)
+        else:
+            scale = 1.0
+
         layer: Dict[str, Any] = {
             "name": layer_name,
             "image-name": asset_name,
-            "position": {"scale": 1.0, "translation-in-points": [0, 0]},
+            "position": {"scale": scale, "translation-in-points": [0, 0]},
         }
         if color:
             layer["fill"] = {"automatic-gradient": resolve_color(color)}
@@ -561,8 +663,80 @@ class IconEditor:
         if blend_mode:
             layer["blend-mode"] = blend_mode
 
-        self.icon_data["groups"][0]["layers"].append(layer)
+        self.icon_data["groups"][0]["layers"].insert(0, layer)
         self.save()
+        return layer_name
+
+    # Image formats that Icon Composer embeds as-is (no conversion needed)
+    _NATIVE_IMAGE_EXTS = {".png", ".jpg", ".jpeg"}
+
+    def add_image_layer(
+        self,
+        image_path: str,
+        layer_name: Optional[str] = None,
+        glass: bool = False,
+        blend_mode: Optional[str] = None,
+        auto_scale: bool = False,
+    ):
+        """Add a raster image layer. PNG and JPEG are embedded as-is;
+        other formats are converted to PNG using sips."""
+        if not os.path.exists(image_path):
+            raise FileNotFoundError(f"Image file not found: {image_path}")
+        if blend_mode:
+            _validate_blend_mode(blend_mode)
+        if not self.assets_dir:
+            raise RuntimeError(
+                "Icon not initialized. Use create_new() or load() first."
+            )
+
+        src_ext = os.path.splitext(image_path)[1].lower()
+        if src_ext in self._NATIVE_IMAGE_EXTS:
+            asset_ext = ".jpg" if src_ext == ".jpeg" else src_ext
+        else:
+            asset_ext = ".png"
+
+        if not layer_name:
+            base = os.path.splitext(os.path.basename(image_path))[0]
+            layer_name = self._unique_layer_name(base, asset_ext)
+        else:
+            layer_name = self._unique_layer_name(layer_name, asset_ext)
+
+        if src_ext in self._NATIVE_IMAGE_EXTS:
+            asset_name = f"{layer_name}{asset_ext}"
+            asset_path = os.path.join(self.assets_dir, asset_name)
+            shutil.copy(image_path, asset_path)
+        else:
+            # Convert to PNG using sips
+            asset_name = f"{layer_name}.png"
+            asset_path = os.path.join(self.assets_dir, asset_name)
+            result = subprocess.run(
+                ["sips", "-s", "format", "png", image_path, "--out", asset_path],
+                capture_output=True, text=True,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(
+                    f"sips conversion failed: {result.stderr.strip()}"
+                )
+
+        if not self.icon_data["groups"]:
+            self.icon_data["groups"].append({"layers": []})
+
+        layer: Dict[str, Any] = {
+            "name": layer_name,
+            "image-name": asset_name,
+        }
+        if auto_scale:
+            w, h = self._get_image_dimensions(image_path)
+            scale = self._compute_auto_scale(w, h)
+            layer["position"] = {"scale": scale, "translation-in-points": [0, 0]}
+        if glass:
+            layer["glass"] = True
+        if blend_mode:
+            layer["blend-mode"] = blend_mode
+
+        self.icon_data["groups"][0]["layers"].insert(0, layer)
+        self.save()
+        return layer_name
 
     def scale_shift_layer(
         self, layer_name: str, scale: float, shift_x: int, shift_y: int
@@ -573,6 +747,18 @@ class IconEditor:
                 if layer["name"] == layer_name:
                     layer["position"]["scale"] = scale
                     layer["position"]["translation-in-points"] = [shift_x, shift_y]
+                    break
+        self.save()
+
+    def set_layer_hidden(self, layer_name: str, hidden: bool):
+        """Set layer visibility. hidden=True hides the layer."""
+        for group in self.icon_data["groups"]:
+            for layer in group["layers"]:
+                if layer["name"] == layer_name:
+                    if hidden:
+                        layer["hidden"] = True
+                    elif "hidden" in layer:
+                        del layer["hidden"]
                     break
         self.save()
 

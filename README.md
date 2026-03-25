@@ -16,7 +16,8 @@ icedit provides a Python API and CLI for programmatic icon creation and modifica
 
 ```bash
 icedit create <icon_path> <background_color>
-icedit add_svg <icon_path> <svg_path> <layer_name> [--color <color>] [--glass] [--blend-mode <mode>]
+icedit add_svg <icon_path> <svg_path> [<layer_name>] [--color <color>] [--glass] [--blend-mode <mode>]
+icedit add_image <icon_path> <image_path> [<layer_name>] [--glass] [--blend-mode <mode>]
 icedit remove <icon_path> <layer_name>
 icedit scale_shift <icon_path> <layer_name> <scale> <shift_x> <shift_y>
 icedit change_fill <icon_path> <layer_name> <fill_type> [<color1>] [--color2 <color2>]

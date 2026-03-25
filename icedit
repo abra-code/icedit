@@ -17,7 +17,7 @@ def main():
     add_svg_parser = subparsers.add_parser("add_svg", help="Add SVG layer")
     add_svg_parser.add_argument("icon_path", help="Path to the icon")
     add_svg_parser.add_argument("svg_path", help="Path to SVG file")
-    add_svg_parser.add_argument("layer_name", help="Name of the layer")
+    add_svg_parser.add_argument("layer_name", nargs="?", default=None, help="Name of the layer (default: filename)")
     add_svg_parser.add_argument("--color", help="Optional color for gradient")
     add_svg_parser.add_argument(
         "--glass", action="store_true", help="Enable glass effect"
@@ -25,10 +25,32 @@ def main():
     add_svg_parser.add_argument(
         "--blend-mode", help="Blend mode (e.g., plus-darker, multiply)"
     )
+    add_svg_parser.add_argument(
+        "--auto-scale", action="store_true", help="Auto-scale layer to 768pt in 1024pt icon"
+    )
+
+    add_image_parser = subparsers.add_parser("add_image", help="Add image layer (PNG, JPEG, etc.)")
+    add_image_parser.add_argument("icon_path", help="Path to the icon")
+    add_image_parser.add_argument("image_path", help="Path to image file")
+    add_image_parser.add_argument("layer_name", nargs="?", default=None, help="Name of the layer (default: filename)")
+    add_image_parser.add_argument(
+        "--glass", action="store_true", help="Enable glass effect"
+    )
+    add_image_parser.add_argument(
+        "--blend-mode", help="Blend mode (e.g., plus-darker, multiply)"
+    )
+    add_image_parser.add_argument(
+        "--auto-scale", action="store_true", help="Auto-scale layer to 768pt in 1024pt icon"
+    )
 
     remove_parser = subparsers.add_parser("remove", help="Remove a layer")
     remove_parser.add_argument("icon_path", help="Path to the icon")
     remove_parser.add_argument("layer_name", help="Name of the layer to remove")
+
+    hide_parser = subparsers.add_parser("hide", help="Hide or show a layer")
+    hide_parser.add_argument("icon_path", help="Path to the icon")
+    hide_parser.add_argument("layer_name", help="Name of the layer")
+    hide_parser.add_argument("hidden", choices=["true", "false"], help="true to hide, false to show")
 
     scale_shift_parser = subparsers.add_parser(
         "scale_shift", help="Scale and shift layer"
@@ -153,15 +175,30 @@ def main():
     if args.command == "remove":
         icon.remove_layer(args.layer_name)
         print(f"Removed layer {args.layer_name} from {icon_path}")
+    elif args.command == "hide":
+        hidden = args.hidden == "true"
+        icon.set_layer_hidden(args.layer_name, hidden)
+        state = "hidden" if hidden else "visible"
+        print(f"Layer {args.layer_name} is now {state} in {icon_path}")
     elif args.command == "add_svg":
-        icon.add_svg_layer(
+        name = icon.add_svg_layer(
             args.svg_path,
             args.layer_name,
             args.color,
             glass=args.glass,
             blend_mode=args.blend_mode,
+            auto_scale=args.auto_scale,
         )
-        print(f"Added SVG layer {args.layer_name} to {icon_path}")
+        print(f"Added SVG layer '{name}' to {icon_path}")
+    elif args.command == "add_image":
+        name = icon.add_image_layer(
+            args.image_path,
+            args.layer_name,
+            glass=args.glass,
+            blend_mode=args.blend_mode,
+            auto_scale=args.auto_scale,
+        )
+        print(f"Added image layer '{name}' to {icon_path}")
     elif args.command == "scale_shift":
         try:
             icon.scale_shift_layer(
