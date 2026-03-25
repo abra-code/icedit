@@ -765,10 +765,7 @@ class IconEditor:
         for group in self.icon_data["groups"]:
             for layer in group["layers"]:
                 if layer["name"] == layer_name:
-                    if glass:
-                        layer["glass"] = True
-                    elif "glass" in layer:
-                        del layer["glass"]
+                    layer["glass"] = glass
                     break
         self.save()
 
