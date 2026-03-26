@@ -199,14 +199,14 @@ def _create_blend_mode(temp_dir: str, svg_path: str) -> IconEditor:
 def _create_shadow(temp_dir: str, svg_path: str) -> IconEditor:
     icon = IconEditor.create_new(os.path.join(temp_dir, "shadow.icon"), "blue")
     icon.add_svg_layer(svg_path, "shape")
-    icon.set_shadow("", "neutral", 0.5)
+    icon.set_shadow(1, "neutral", 0.5)
     return icon
 
 
 def _create_translucency(temp_dir: str, svg_path: str) -> IconEditor:
     icon = IconEditor.create_new(os.path.join(temp_dir, "translucency.icon"), "blue")
     icon.add_svg_layer(svg_path, "shape")
-    icon.change_translucency("", 0.5)
+    icon.change_translucency(1, 0.5)
     return icon
 
 

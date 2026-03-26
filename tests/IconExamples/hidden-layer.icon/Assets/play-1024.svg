@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--Generator: Apple Native CoreSVG 341-->
+
+<svg
+   version="1.1"
+   viewBox="0 0 1024 1024"
+   id="svg2"
+   sodipodi:docname="play-1024.svg"
+   width="1024"
+   height="1024"
+   inkscape:version="1.4.2 (ebf0e940, 2025-05-08)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs2" />
+  <sodipodi:namedview
+     id="namedview2"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="false"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="false"
+     inkscape:deskcolor="#d1d1d1"
+     showborder="false"
+     inkscape:antialias-rendering="true"
+     inkscape:zoom="0.59131924"
+     inkscape:cx="662.07891"
+     inkscape:cy="554.69191"
+     inkscape:window-width="1528"
+     inkscape:window-height="1005"
+     inkscape:window-x="158"
+     inkscape:window-y="34"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="svg2" />
+  <g
+     id="g2"
+     transform="scale(7.8926477,7.8865687)">
+    <path
+       d="m 64.8457,129.741 c 35.8093,0 64.8953,-29.036 64.8953,-64.8455 C 129.741,29.0859 100.655,0 64.8457,0 29.0361,0 0,29.0859 0,64.8955 0,100.705 29.0361,129.741 64.8457,129.741 Z m 0,-9.263 C 34.1162,120.478 9.26367,95.625 9.26367,64.8955 9.26367,34.166 34.1162,9.31348 64.8457,9.31348 c 30.7295,0 55.5823,24.85252 55.5823,55.58202 0,30.7295 -24.8528,55.5825 -55.5823,55.5825 z"
+       fill="#000000"
+       fill-opacity="0.85"
+       id="path1"
+       style="display:inline" />
+    <path
+       d="M 52.6934,89.9971 89.3496,68.2324 c 2.5899,-1.5439 2.54,-5.0303 0,-6.5742 L 52.6934,39.7939 C 50.1035,38.25 46.667,39.4951 46.667,42.3838 V 87.457 c 0,2.8887 3.2373,4.2334 6.0264,2.5401 z"
+       fill="#000000"
+       fill-opacity="0.85"
+       id="path2"
+       style="display:inline" />
+  </g>
+</svg>

@@ -6,6 +6,14 @@ from icon_editor import IconEditor, resolve_color, validate_icon, generate_varia
 from icon_editor.core import APPLE_COLORS, CRAYONS_COLORS, WEB_COLORS
 
 
+def parse_ref(value):
+    """Parse a group or layer reference: integer string → int, otherwise keep as name string."""
+    try:
+        return int(value)
+    except ValueError:
+        return value
+
+
 def main():
     parser = argparse.ArgumentParser(description="icedit - Icon Composer Editor")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -28,6 +36,7 @@ def main():
     add_svg_parser.add_argument(
         "--auto-scale", action="store_true", help="Auto-scale layer to 768pt in 1024pt icon"
     )
+    add_svg_parser.add_argument("--group", default="1", help="Group index (1-based) or name (default: 1)")
 
     add_image_parser = subparsers.add_parser("add_image", help="Add image layer (PNG, JPEG, etc.)")
     add_image_parser.add_argument("icon_path", help="Path to the icon")
@@ -42,30 +51,34 @@ def main():
     add_image_parser.add_argument(
         "--auto-scale", action="store_true", help="Auto-scale layer to 768pt in 1024pt icon"
     )
+    add_image_parser.add_argument("--group", default="1", help="Group index (1-based) or name (default: 1)")
 
     remove_parser = subparsers.add_parser("remove", help="Remove a layer")
     remove_parser.add_argument("icon_path", help="Path to the icon")
-    remove_parser.add_argument("layer_name", help="Name of the layer to remove")
+    remove_parser.add_argument("layer", help="Layer index (1-based) or name")
+    remove_parser.add_argument("--group", default="1", help="Group index (1-based) or name (default: 1)")
 
     hide_parser = subparsers.add_parser("hide", help="Hide or show a layer")
     hide_parser.add_argument("icon_path", help="Path to the icon")
-    hide_parser.add_argument("layer_name", help="Name of the layer")
+    hide_parser.add_argument("layer", help="Layer index (1-based) or name")
     hide_parser.add_argument("hidden", choices=["true", "false"], help="true to hide, false to show")
+    hide_parser.add_argument("--group", default="1", help="Group index (1-based) or name (default: 1)")
 
     scale_shift_parser = subparsers.add_parser(
         "scale_shift", help="Scale and shift layer"
     )
     scale_shift_parser.add_argument("icon_path", help="Path to the icon")
-    scale_shift_parser.add_argument("layer_name", help="Name of the layer")
+    scale_shift_parser.add_argument("layer", help="Layer index (1-based) or name")
     scale_shift_parser.add_argument("scale", type=float, help="Scale factor")
     scale_shift_parser.add_argument("shift_x", type=int, help="Shift in X")
     scale_shift_parser.add_argument("shift_y", type=int, help="Shift in Y")
+    scale_shift_parser.add_argument("--group", default="1", help="Group index (1-based) or name (default: 1)")
 
     change_fill_parser = subparsers.add_parser(
         "change_fill", help="Change layer or background fill"
     )
     change_fill_parser.add_argument("icon_path", help="Path to the icon")
-    change_fill_parser.add_argument("layer_name", help="Layer name, or 'Background' for background fill")
+    change_fill_parser.add_argument("layer", help="Layer index (1-based) or name, or 'Background' for background fill")
     change_fill_parser.add_argument(
         "fill_type", choices=["none", "automatic", "solid", "auto-gradient", "gradient"], help="Fill type"
     )
@@ -73,36 +86,97 @@ def main():
     change_fill_parser.add_argument(
         "--color2", help="Second color for gradient"
     )
+    change_fill_parser.add_argument("--group", default="1", help="Group index (1-based) or name (default: 1)")
 
     change_translucency_parser = subparsers.add_parser(
         "change_translucency", help="Change translucency"
     )
     change_translucency_parser.add_argument("icon_path", help="Path to the icon")
-    change_translucency_parser.add_argument("group_name", help="Name of the group")
+    change_translucency_parser.add_argument("group", help="Group index (1-based) or name")
     change_translucency_parser.add_argument(
         "translucency", type=float, help="Translucency (0.0-1.0)"
     )
 
     set_glass_parser = subparsers.add_parser("set_glass", help="Set glass effect on layer")
     set_glass_parser.add_argument("icon_path", help="Path to the icon")
-    set_glass_parser.add_argument("layer_name", help="Name of the layer")
+    set_glass_parser.add_argument("layer", help="Layer index (1-based) or name")
     set_glass_parser.add_argument("glass", choices=["true", "false"], help="true to enable, false to disable")
+    set_glass_parser.add_argument("--group", default="1", help="Group index (1-based) or name (default: 1)")
 
     set_blend_parser = subparsers.add_parser("set_blend", help="Set blend mode on layer")
     set_blend_parser.add_argument("icon_path", help="Path to the icon")
-    set_blend_parser.add_argument("layer_name", help="Name of the layer")
+    set_blend_parser.add_argument("layer", help="Layer index (1-based) or name")
     set_blend_parser.add_argument("blend_mode", help="Blend mode (e.g., normal, plus-darker, multiply)")
+    set_blend_parser.add_argument("--group", default="1", help="Group index (1-based) or name (default: 1)")
 
     set_shadow_parser = subparsers.add_parser("set_shadow", help="Set shadow on group")
     set_shadow_parser.add_argument("icon_path", help="Path to the icon")
-    set_shadow_parser.add_argument("group_name", help="Name of the group")
+    set_shadow_parser.add_argument("group", help="Group index (1-based) or name")
     set_shadow_parser.add_argument(
-        "kind", choices=["none", "neutral", "color"], help="Shadow kind (none to remove)"
+        "kind", choices=["none", "neutral", "layer-color"],
+        help="Shadow kind: none (off), neutral, layer-color (chromatic)"
     )
     set_shadow_parser.add_argument(
         "opacity", type=float, nargs="?", default=0.5, help="Shadow opacity (0.0-1.0)"
     )
-    set_shadow_parser.add_argument("--color", help="Shadow color (for kind=color)")
+
+    set_group_opacity_parser = subparsers.add_parser(
+        "set_group_opacity", help="Set opacity on group (Color section)"
+    )
+    set_group_opacity_parser.add_argument("icon_path", help="Path to the icon")
+    set_group_opacity_parser.add_argument("group", help="Group index (1-based) or name")
+    set_group_opacity_parser.add_argument("opacity", type=float, help="Opacity (0.0-1.0)")
+
+    set_group_blend_parser = subparsers.add_parser(
+        "set_group_blend", help="Set blend mode on group"
+    )
+    set_group_blend_parser.add_argument("icon_path", help="Path to the icon")
+    set_group_blend_parser.add_argument("group", help="Group index (1-based) or name")
+    set_group_blend_parser.add_argument("blend_mode", help="Blend mode (e.g., normal, lighten)")
+
+    set_group_blur_parser = subparsers.add_parser(
+        "set_group_blur", help="Set blur-material on group"
+    )
+    set_group_blur_parser.add_argument("icon_path", help="Path to the icon")
+    set_group_blur_parser.add_argument("group", help="Group index (1-based) or name")
+    set_group_blur_parser.add_argument("blur", type=float, help="Blur factor (0.0-1.0)")
+
+    set_group_lighting_parser = subparsers.add_parser(
+        "set_group_lighting", help="Set lighting mode on group"
+    )
+    set_group_lighting_parser.add_argument("icon_path", help="Path to the icon")
+    set_group_lighting_parser.add_argument("group", help="Group index (1-based) or name")
+    set_group_lighting_parser.add_argument(
+        "lighting", choices=["combined", "individual"], help="Lighting mode"
+    )
+
+    set_group_specular_parser = subparsers.add_parser(
+        "set_group_specular", help="Set specular on group"
+    )
+    set_group_specular_parser.add_argument("icon_path", help="Path to the icon")
+    set_group_specular_parser.add_argument("group", help="Group index (1-based) or name")
+    set_group_specular_parser.add_argument(
+        "specular", choices=["true", "false"], help="true to enable, false to disable"
+    )
+
+    hide_group_parser = subparsers.add_parser("hide_group", help="Hide or show a group")
+    hide_group_parser.add_argument("icon_path", help="Path to the icon")
+    hide_group_parser.add_argument("group", help="Group index (1-based) or name")
+    hide_group_parser.add_argument("hidden", choices=["true", "false"], help="true to hide, false to show")
+
+    rename_group_parser = subparsers.add_parser("rename_group", help="Rename a group")
+    rename_group_parser.add_argument("icon_path", help="Path to the icon")
+    rename_group_parser.add_argument("group", help="Group index (1-based) or name")
+    rename_group_parser.add_argument("new_name", help="New name for the group")
+
+    scale_shift_group_parser = subparsers.add_parser(
+        "scale_shift_group", help="Scale and shift a group"
+    )
+    scale_shift_group_parser.add_argument("icon_path", help="Path to the icon")
+    scale_shift_group_parser.add_argument("group", help="Group index (1-based) or name")
+    scale_shift_group_parser.add_argument("scale", type=float, help="Scale factor")
+    scale_shift_group_parser.add_argument("shift_x", type=int, help="Shift in X (points)")
+    scale_shift_group_parser.add_argument("shift_y", type=int, help="Shift in Y (points)")
 
     validate_parser = subparsers.add_parser(
         "validate", help="Validate icon by exporting PNGs"
@@ -192,14 +266,19 @@ def main():
     icon = IconEditor.load(icon_path)
 
     if args.command == "remove":
-        icon.remove_layer(args.layer_name)
-        print(f"Removed layer {args.layer_name} from {icon_path}")
+        l = parse_ref(args.layer)
+        g = parse_ref(args.group)
+        icon.remove_layer(l, group=g)
+        print(f"Removed layer {args.layer} from {icon_path}")
     elif args.command == "hide":
+        l = parse_ref(args.layer)
+        g = parse_ref(args.group)
         hidden = args.hidden == "true"
-        icon.set_layer_hidden(args.layer_name, hidden)
+        icon.set_layer_hidden(l, hidden, group=g)
         state = "hidden" if hidden else "visible"
-        print(f"Layer {args.layer_name} is now {state} in {icon_path}")
+        print(f"Layer {args.layer} is now {state} in {icon_path}")
     elif args.command == "add_svg":
+        g = parse_ref(args.group)
         name = icon.add_svg_layer(
             args.svg_path,
             args.layer_name,
@@ -207,27 +286,30 @@ def main():
             glass=not args.no_glass,
             blend_mode=args.blend_mode,
             auto_scale=args.auto_scale,
+            group=g,
         )
         print(f"Added SVG layer '{name}' to {icon_path}")
     elif args.command == "add_image":
+        g = parse_ref(args.group)
         name = icon.add_image_layer(
             args.image_path,
             args.layer_name,
             glass=not args.no_glass,
             blend_mode=args.blend_mode,
             auto_scale=args.auto_scale,
+            group=g,
         )
         print(f"Added image layer '{name}' to {icon_path}")
     elif args.command == "scale_shift":
         try:
-            icon.scale_shift_layer(
-                args.layer_name, args.scale, args.shift_x, args.shift_y
-            )
-            print(f"Scaled/shifted layer {args.layer_name} in {icon_path}")
+            l = parse_ref(args.layer)
+            g = parse_ref(args.group)
+            icon.scale_shift_layer(l, args.scale, args.shift_x, args.shift_y, group=g)
+            print(f"Scaled/shifted layer {args.layer} in {icon_path}")
         except ValueError as e:
             print(f"Error: {e}")
     elif args.command == "change_fill":
-        is_bg = args.layer_name == "Background"
+        is_bg = args.layer == "Background"
         c1 = resolve_color(args.color1) if args.color1 else None
         c2 = resolve_color(args.color2) if args.color2 else None
         if args.fill_type == "gradient" and not c2:
@@ -236,30 +318,89 @@ def main():
         if is_bg:
             icon.change_background_fill(args.fill_type, c1, c2)
         else:
-            icon.change_fill(args.layer_name, args.fill_type, c1, c2)
-        target = "background" if is_bg else f"layer {args.layer_name}"
+            l = parse_ref(args.layer)
+            g = parse_ref(args.group)
+            icon.change_fill(l, args.fill_type, c1, c2, group=g)
+        target = "background" if is_bg else f"layer {args.layer}"
         print(f"Changed fill for {target} in {icon_path}")
     elif args.command == "set_glass":
+        l = parse_ref(args.layer)
+        g = parse_ref(args.group)
         glass = args.glass == "true"
-        icon.set_glass(args.layer_name, glass)
+        icon.set_glass(l, glass, group=g)
         state = "enabled" if glass else "disabled"
-        print(f"Glass {state} on layer {args.layer_name} in {icon_path}")
+        print(f"Glass {state} on layer {args.layer} in {icon_path}")
     elif args.command == "set_blend":
         try:
-            icon.set_blend_mode(args.layer_name, args.blend_mode)
-            print(f"Blend mode set to {args.blend_mode} on layer {args.layer_name} in {icon_path}")
+            l = parse_ref(args.layer)
+            g = parse_ref(args.group)
+            icon.set_blend_mode(l, args.blend_mode, group=g)
+            print(f"Blend mode set to {args.blend_mode} on layer {args.layer} in {icon_path}")
         except ValueError as e:
             print(f"Error: {e}")
     elif args.command == "change_translucency":
         try:
-            icon.change_translucency(args.group_name, args.translucency)
-            print(f"Changed translucency for group {args.group_name} in {icon_path}")
+            g = parse_ref(args.group)
+            icon.change_translucency(g, args.translucency)
+            print(f"Changed translucency for group {args.group} in {icon_path}")
         except ValueError as e:
             print(f"Error: {e}")
     elif args.command == "set_shadow":
         try:
-            icon.set_shadow(args.group_name, args.kind, args.opacity, args.color)
-            print(f"Set shadow on group {args.group_name} in {icon_path}")
+            g = parse_ref(args.group)
+            icon.set_shadow(g, args.kind, args.opacity)
+            print(f"Set shadow on group {args.group} in {icon_path}")
+        except ValueError as e:
+            print(f"Error: {e}")
+    elif args.command == "set_group_opacity":
+        try:
+            g = parse_ref(args.group)
+            icon.set_group_opacity(g, args.opacity)
+            print(f"Set opacity {args.opacity} on group {args.group} in {icon_path}")
+        except ValueError as e:
+            print(f"Error: {e}")
+    elif args.command == "set_group_blend":
+        try:
+            g = parse_ref(args.group)
+            icon.set_group_blend_mode(g, args.blend_mode)
+            print(f"Set blend mode {args.blend_mode} on group {args.group} in {icon_path}")
+        except ValueError as e:
+            print(f"Error: {e}")
+    elif args.command == "set_group_blur":
+        try:
+            g = parse_ref(args.group)
+            icon.set_group_blur(g, args.blur)
+            print(f"Set blur {args.blur} on group {args.group} in {icon_path}")
+        except ValueError as e:
+            print(f"Error: {e}")
+    elif args.command == "set_group_lighting":
+        try:
+            g = parse_ref(args.group)
+            icon.set_group_lighting(g, args.lighting)
+            print(f"Set lighting {args.lighting} on group {args.group} in {icon_path}")
+        except ValueError as e:
+            print(f"Error: {e}")
+    elif args.command == "set_group_specular":
+        g = parse_ref(args.group)
+        specular = args.specular == "true"
+        icon.set_group_specular(g, specular)
+        state = "enabled" if specular else "disabled"
+        print(f"Specular {state} on group {args.group} in {icon_path}")
+    elif args.command == "hide_group":
+        g = parse_ref(args.group)
+        hidden = args.hidden == "true"
+        icon.set_group_hidden(g, hidden)
+        state = "hidden" if hidden else "visible"
+        print(f"Group {args.group} is now {state} in {icon_path}")
+    elif args.command == "rename_group":
+        g = parse_ref(args.group)
+        icon.rename_group(g, args.new_name)
+        print(f"Renamed group '{args.group}' to '{args.new_name}' in {icon_path}")
+    elif args.command == "scale_shift_group":
+        try:
+            g = parse_ref(args.group)
+            icon.scale_shift_group(g, args.scale, args.shift_x, args.shift_y)
+            print(f"Scaled/shifted group {args.group} in {icon_path}")
         except ValueError as e:
             print(f"Error: {e}")
     elif args.command == "validate":

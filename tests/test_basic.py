@@ -64,7 +64,7 @@ def basic_tests():
         icon.add_svg_layer("/tmp/simple.svg", "shape", "orange")
         icon.scale_shift_layer("shape", 0.8, 50, 50)
         print("resolve_color('orange'):", repr(resolve_color("orange")))
-        icon.change_translucency("", 0.1)
+        icon.change_translucency(1, 0.1)
         icon.save()
 
         json_path = os.path.join(icon_path, "icon.json")

@@ -4,6 +4,14 @@
   },
   "groups" : [
     {
+      "blend-mode" : "lighten",
+      "blur-material" : 0.95,
+      "hidden-specializations" : [
+        {
+          "idiom" : "square",
+          "value" : false
+        }
+      ],
       "layers" : [
         {
           "blend-mode" : "plus-darker",
@@ -13,23 +21,52 @@
           "glass" : true,
           "image-name" : "heart-black.svg",
           "name" : "heart-black",
-          "position" : {
-            "scale" : 0.7,
+          "position-specializations" : [
+            {
+              "value" : {
+                "scale" : 0.7,
+                "translation-in-points" : [
+                  0,
+                  0
+                ]
+              }
+            },
+            {
+              "idiom" : "square",
+              "value" : {
+                "scale" : 1.1,
+                "translation-in-points" : [
+                  0,
+                  0
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "lighting" : "combined",
+      "name" : "Front",
+      "opacity" : 0.98,
+      "position-specializations" : [
+        {
+          "idiom" : "square",
+          "value" : {
+            "scale" : 0.82,
             "translation-in-points" : [
-              0,
-              0
+              4,
+              6
             ]
           }
         }
       ],
-      "name" : "First",
       "shadow" : {
-        "kind" : "neutral",
-        "opacity" : 0.5
+        "kind" : "layer-color",
+        "opacity" : 0.55
       },
+      "specular" : false,
       "translucency" : {
         "enabled" : true,
-        "value" : 0.5
+        "value" : 0.55
       }
     },
     {
@@ -39,11 +76,13 @@
           "name" : "heart-black"
         }
       ],
-      "name" : "Second",
+      "lighting" : "individual",
+      "name" : "Back",
       "shadow" : {
         "kind" : "neutral",
         "opacity" : 0.5
       },
+      "specular" : true,
       "translucency" : {
         "enabled" : true,
         "value" : 0.1

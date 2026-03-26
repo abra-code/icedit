@@ -162,8 +162,9 @@ class TestValidators(unittest.TestCase):
             _validate_blend_mode("")
 
     def test_validate_shadow_kind_valid(self):
+        self.assertEqual(_validate_shadow_kind("none"), "none")
         self.assertEqual(_validate_shadow_kind("neutral"), "neutral")
-        self.assertEqual(_validate_shadow_kind("color"), "color")
+        self.assertEqual(_validate_shadow_kind("layer-color"), "layer-color")
 
     def test_validate_shadow_kind_invalid(self):
         with self.assertRaises(ValueError):
@@ -486,7 +487,7 @@ class TestIconEditor(unittest.TestCase):
         icon_path = os.path.join(self.temp_dir, "test.icon")
         icon = IconEditor.create_new(icon_path, "blue")
         icon.add_svg_layer(self.svg_path, "circle")
-        icon.change_translucency("", 0.5)
+        icon.change_translucency(1, 0.5)
 
         groups = icon.get_groups()
         self.assertEqual(groups[0]["translucency"]["value"], 0.5)
@@ -495,39 +496,49 @@ class TestIconEditor(unittest.TestCase):
         icon_path = os.path.join(self.temp_dir, "test.icon")
         icon = IconEditor.create_new(icon_path, "blue")
         with self.assertRaises(ValueError):
-            icon.change_translucency("", 1.5)
+            icon.change_translucency(1, 1.5)
 
     def test_set_shadow(self):
         icon_path = os.path.join(self.temp_dir, "test.icon")
         icon = IconEditor.create_new(icon_path, "blue")
         icon.add_svg_layer(self.svg_path, "circle")
-        icon.set_shadow("", "neutral", 0.5)
+        icon.set_shadow(1, "neutral", 0.5)
 
         groups = icon.get_groups()
         self.assertEqual(groups[0]["shadow"]["kind"], "neutral")
         self.assertEqual(groups[0]["shadow"]["opacity"], 0.5)
 
-    def test_set_shadow_with_color(self):
+    def test_set_shadow_chromatic(self):
         icon_path = os.path.join(self.temp_dir, "test.icon")
         icon = IconEditor.create_new(icon_path, "blue")
         icon.add_svg_layer(self.svg_path, "circle")
-        icon.set_shadow("", "color", 0.5, "red")
+        icon.set_shadow(1, "layer-color", 0.75)
 
         groups = icon.get_groups()
-        self.assertEqual(groups[0]["shadow"]["kind"], "color")
-        self.assertIn("color", groups[0]["shadow"])
+        self.assertEqual(groups[0]["shadow"]["kind"], "layer-color")
+        self.assertEqual(groups[0]["shadow"]["opacity"], 0.75)
+
+    def test_set_shadow_none(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.set_shadow(1, "neutral", 0.5)
+        icon.set_shadow(1, "none", 0.5)
+
+        groups = icon.get_groups()
+        self.assertEqual(groups[0]["shadow"]["kind"], "none")
 
     def test_set_shadow_invalid_kind(self):
         icon_path = os.path.join(self.temp_dir, "test.icon")
         icon = IconEditor.create_new(icon_path, "blue")
         with self.assertRaises(ValueError):
-            icon.set_shadow("", "invalid", 0.5)
+            icon.set_shadow(1, "invalid", 0.5)
 
     def test_set_shadow_invalid_opacity(self):
         icon_path = os.path.join(self.temp_dir, "test.icon")
         icon = IconEditor.create_new(icon_path, "blue")
         with self.assertRaises(ValueError):
-            icon.set_shadow("", "neutral", 1.5)
+            icon.set_shadow(1, "neutral", 1.5)
 
     def test_remove_layer(self):
         icon_path = os.path.join(self.temp_dir, "test.icon")
@@ -572,6 +583,240 @@ class TestIconEditor(unittest.TestCase):
         self.assertEqual(groups[0]["layers"][0]["name"], "circle")
         self.assertEqual(groups[1]["name"], "Second")
 
+    def test_group_by_name(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.rename_group(1, "Front")
+        icon.set_group_opacity("Front", 0.5)
+        self.assertEqual(icon.get_groups()[0]["opacity"], 0.5)
+
+    def test_group_by_name_ambiguous(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.rename_group(1, "Group")
+        icon.icon_data["groups"].append({"name": "Group", "layers": []})
+        icon.save()
+        with self.assertRaises(ValueError) as ctx:
+            icon.set_group_opacity("Group", 0.5)
+        self.assertIn("Ambiguous", str(ctx.exception))
+
+    def test_set_group_opacity(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.set_group_opacity(1, 0.98)
+        self.assertEqual(icon.get_groups()[0]["opacity"], 0.98)
+
+    def test_set_group_opacity_full_removes(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.set_group_opacity(1, 0.5)
+        icon.set_group_opacity(1, 1.0)
+        self.assertNotIn("opacity", icon.get_groups()[0])
+
+    def test_set_group_blend_mode(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.set_group_blend_mode(1, "lighten")
+        self.assertEqual(icon.get_groups()[0]["blend-mode"], "lighten")
+
+    def test_set_group_blend_mode_normal_removes(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.set_group_blend_mode(1, "lighten")
+        icon.set_group_blend_mode(1, "normal")
+        self.assertNotIn("blend-mode", icon.get_groups()[0])
+
+    def test_set_group_blur(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.set_group_blur(1, 0.95)
+        self.assertEqual(icon.get_groups()[0]["blur-material"], 0.95)
+
+    def test_set_group_lighting(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.set_group_lighting(1, "combined")
+        self.assertEqual(icon.get_groups()[0]["lighting"], "combined")
+        icon.set_group_lighting(1, "individual")
+        self.assertEqual(icon.get_groups()[0]["lighting"], "individual")
+
+    def test_set_group_lighting_invalid(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        with self.assertRaises(ValueError):
+            icon.set_group_lighting(1, "bogus")
+
+    def test_set_group_specular(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.set_group_specular(1, True)
+        self.assertTrue(icon.get_groups()[0]["specular"])
+        icon.set_group_specular(1, False)
+        self.assertFalse(icon.get_groups()[0]["specular"])
+
+    def test_set_group_hidden(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.set_group_hidden(1, True)
+        specs = icon.get_groups()[0]["hidden-specializations"]
+        self.assertEqual(len(specs), 1)
+        self.assertEqual(specs[0]["idiom"], "square")
+        self.assertTrue(specs[0]["value"])
+
+    def test_set_group_hidden_toggle(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.set_group_hidden(1, True)
+        icon.set_group_hidden(1, False)
+        specs = icon.get_groups()[0]["hidden-specializations"]
+        self.assertEqual(len(specs), 1)
+        self.assertFalse(specs[0]["value"])
+
+    def test_rename_group(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.rename_group(1, "Front")
+        self.assertEqual(icon.get_groups()[0]["name"], "Front")
+
+    def test_rename_group_duplicate_rejected(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.rename_group(1, "Front")
+        icon.icon_data["groups"].append({"name": "Back", "layers": []})
+        icon.save()
+        with self.assertRaises(ValueError) as ctx:
+            icon.rename_group(2, "Front")
+        self.assertIn("unique", str(ctx.exception))
+
+    def test_scale_shift_group(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.scale_shift_group(1, 0.82, 4, 6)
+        specs = icon.get_groups()[0]["position-specializations"]
+        self.assertEqual(len(specs), 1)
+        self.assertEqual(specs[0]["idiom"], "square")
+        self.assertEqual(specs[0]["value"]["scale"], 0.82)
+        self.assertEqual(specs[0]["value"]["translation-in-points"], [4, 6])
+
+    def test_scale_shift_group_updates_existing(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.scale_shift_group(1, 0.5, 0, 0)
+        icon.scale_shift_group(1, 0.9, 10, -5)
+        specs = icon.get_groups()[0]["position-specializations"]
+        self.assertEqual(len(specs), 1)
+        self.assertEqual(specs[0]["value"]["scale"], 0.9)
+        self.assertEqual(specs[0]["value"]["translation-in-points"], [10, -5])
+
+    # --- Layer identification by index ---
+
+    def test_layer_by_index(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.add_svg_layer(self.svg_path, "square")
+        # After insert-at-top: square (index 1), circle (index 2)
+        icon.set_glass(1, False)  # by index: square
+        layers = icon.get_layers()
+        self.assertFalse(layers[0]["glass"])  # square
+        self.assertTrue(layers[1]["glass"])   # circle untouched
+
+    def test_layer_by_name(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.add_svg_layer(self.svg_path, "square")
+        icon.set_glass("circle", False)
+        layers = icon.get_layers()
+        self.assertTrue(layers[0]["glass"])    # square
+        self.assertFalse(layers[1]["glass"])   # circle
+
+    def test_layer_by_name_ambiguous(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "shape")
+        # Manually add a second layer with the same name
+        icon.icon_data["groups"][0]["layers"].append(
+            {"name": "shape", "image-name": "shape2.svg", "glass": True}
+        )
+        icon.save()
+        with self.assertRaises(ValueError) as ctx:
+            icon.set_glass("shape", False)
+        self.assertIn("Ambiguous", str(ctx.exception))
+
+    def test_layer_by_index_in_second_group(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "front-layer")
+        icon.icon_data["groups"].append({"name": "Back", "layers": [
+            {"name": "back-layer", "image-name": "back.svg", "glass": True,
+             "position": {"scale": 1.0, "translation-in-points": [0, 0]}}
+        ]})
+        icon.save()
+        icon.scale_shift_layer(1, 0.5, 10, 20, group=2)
+        back_layer = icon.get_layers(group=2)[0]
+        self.assertEqual(back_layer["position"]["scale"], 0.5)
+        self.assertEqual(back_layer["position"]["translation-in-points"], [10, 20])
+
+    def test_layer_by_name_in_named_group(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "front-layer")
+        icon.rename_group(1, "Front")
+        icon.icon_data["groups"].append({"name": "Back", "layers": [
+            {"name": "back-layer", "image-name": "back.svg", "glass": True}
+        ]})
+        icon.save()
+        icon.set_glass("back-layer", False, group="Back")
+        back_layer = icon.get_layers(group="Back")[0]
+        self.assertFalse(back_layer["glass"])
+
+    def test_remove_layer_by_index(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.add_svg_layer(self.svg_path, "square")
+        # square is index 1, circle is index 2
+        icon.remove_layer(1)  # removes square
+        layers = icon.get_layers()
+        self.assertEqual(len(layers), 1)
+        self.assertEqual(layers[0]["name"], "circle")
+
+    def test_change_fill_by_index(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "circle")
+        icon.change_fill(1, "solid", "extended-srgb:1.0,0.0,0.0,1.0")
+        layers = icon.get_layers()
+        self.assertIn("solid", layers[0]["fill"])
+
+    def test_add_layer_to_second_group(self):
+        icon_path = os.path.join(self.temp_dir, "test.icon")
+        icon = IconEditor.create_new(icon_path, "blue")
+        icon.add_svg_layer(self.svg_path, "front-layer")
+        icon.icon_data["groups"].append({"name": "Back", "layers": []})
+        icon.save()
+        icon.add_svg_layer(self.svg_path, "back-layer", group=2)
+        self.assertEqual(len(icon.get_layers(group=1)), 1)
+        self.assertEqual(len(icon.get_layers(group=2)), 1)
+        self.assertEqual(icon.get_layers(group=2)[0]["name"], "back-layer")
+
 
 class TestIconEditorIntegration(unittest.TestCase):
     def setUp(self):
@@ -593,8 +838,8 @@ class TestIconEditorIntegration(unittest.TestCase):
             self.svg_path, "circle", "blue", glass=True, blend_mode="plus-darker"
         )
         icon.scale_shift_layer("circle", 0.8, 10, -5)
-        icon.change_translucency("", 0.3)
-        icon.set_shadow("", "neutral", 0.4)
+        icon.change_translucency(1, 0.3)
+        icon.set_shadow(1, "neutral", 0.4)
         icon.save()
 
         loaded = IconEditor.load(icon_path)

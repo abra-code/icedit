@@ -7,7 +7,7 @@ import re
 import shutil
 import subprocess
 import xml.etree.ElementTree as ET
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
@@ -287,7 +287,7 @@ VALID_BLEND_MODES = {
     "color",
     "luminosity",
 }
-VALID_SHADOW_KINDS = {"neutral", "color"}
+VALID_SHADOW_KINDS = {"none", "neutral", "layer-color"}
 
 
 def _format_rgb(r: float, g: float, b: float, a: float = 1.0) -> str:
@@ -622,6 +622,7 @@ class IconEditor:
         glass: bool = True,
         blend_mode: Optional[str] = None,
         auto_scale: bool = False,
+        group: Union[int, str] = 1,
     ):
         if not os.path.exists(svg_path):
             raise FileNotFoundError(f"SVG file not found: {svg_path}")
@@ -662,7 +663,10 @@ class IconEditor:
         if blend_mode:
             layer["blend-mode"] = blend_mode
 
-        self.icon_data["groups"][0]["layers"].insert(0, layer)
+        target_group = self._get_group(group)
+        if target_group is None:
+            target_group = self.icon_data["groups"][0]
+        target_group["layers"].insert(0, layer)
         self.save()
         return layer_name
 
@@ -676,6 +680,7 @@ class IconEditor:
         glass: bool = True,
         blend_mode: Optional[str] = None,
         auto_scale: bool = False,
+        group: Union[int, str] = 1,
     ):
         """Add a raster image layer. PNG and JPEG are embedded as-is;
         other formats are converted to PNG using sips."""
@@ -732,73 +737,66 @@ class IconEditor:
         if blend_mode:
             layer["blend-mode"] = blend_mode
 
-        self.icon_data["groups"][0]["layers"].insert(0, layer)
+        target_group = self._get_group(group)
+        if target_group is None:
+            target_group = self.icon_data["groups"][0]
+        target_group["layers"].insert(0, layer)
         self.save()
         return layer_name
 
     def scale_shift_layer(
-        self, layer_name: str, scale: float, shift_x: int, shift_y: int
+        self, layer_ref: Union[int, str], scale: float, shift_x: int, shift_y: int,
+        group: Union[int, str] = 1,
     ):
         _validate_scale(scale)
-        for group in self.icon_data["groups"]:
-            for layer in group["layers"]:
-                if layer["name"] == layer_name:
-                    layer["position"]["scale"] = scale
-                    layer["position"]["translation-in-points"] = [shift_x, shift_y]
-                    break
+        layer = self._get_layer(layer_ref, group)
+        if layer is not None:
+            if "position" not in layer:
+                layer["position"] = {"scale": 1.0, "translation-in-points": [0, 0]}
+            layer["position"]["scale"] = scale
+            layer["position"]["translation-in-points"] = [shift_x, shift_y]
         self.save()
 
-    def set_layer_hidden(self, layer_name: str, hidden: bool):
+    def set_layer_hidden(self, layer_ref: Union[int, str], hidden: bool,
+                         group: Union[int, str] = 1):
         """Set layer visibility. hidden=True hides the layer."""
-        for group in self.icon_data["groups"]:
-            for layer in group["layers"]:
-                if layer["name"] == layer_name:
-                    if hidden:
-                        layer["hidden"] = True
-                    elif "hidden" in layer:
-                        del layer["hidden"]
-                    break
+        layer = self._get_layer(layer_ref, group)
+        if layer is not None:
+            if hidden:
+                layer["hidden"] = True
+            elif "hidden" in layer:
+                del layer["hidden"]
         self.save()
 
-    def set_glass(self, layer_name: str, glass: bool):
+    def set_glass(self, layer_ref: Union[int, str], glass: bool,
+                  group: Union[int, str] = 1):
         """Set or unset glass effect on a layer."""
-        for group in self.icon_data["groups"]:
-            for layer in group["layers"]:
-                if layer["name"] == layer_name:
-                    layer["glass"] = glass
-                    break
+        layer = self._get_layer(layer_ref, group)
+        if layer is not None:
+            layer["glass"] = glass
         self.save()
 
-    def set_blend_mode(self, layer_name: str, blend_mode: str):
+    def set_blend_mode(self, layer_ref: Union[int, str], blend_mode: str,
+                      group: Union[int, str] = 1):
         """Set blend mode on a layer. Use 'normal' to remove."""
         if blend_mode != "normal":
             _validate_blend_mode(blend_mode)
-        for group in self.icon_data["groups"]:
-            for layer in group["layers"]:
-                if layer["name"] == layer_name:
-                    if blend_mode == "normal":
-                        layer.pop("blend-mode", None)
-                    else:
-                        layer["blend-mode"] = blend_mode
-                    break
+        layer = self._get_layer(layer_ref, group)
+        if layer is not None:
+            if blend_mode == "normal":
+                layer.pop("blend-mode", None)
+            else:
+                layer["blend-mode"] = blend_mode
         self.save()
 
     def change_fill(
         self,
-        layer_name: str,
+        layer_ref: Union[int, str],
         fill_type: str,
         color1: Optional[str] = None,
         color2: Optional[str] = None,
+        group: Union[int, str] = 1,
     ):
-        if fill_type in ("none", "automatic"):
-            for group in self.icon_data["groups"]:
-                for layer in group["layers"]:
-                    if layer["name"] == layer_name:
-                        layer["fill"] = fill_type
-                        break
-            self.save()
-            return
-
         if fill_type in ("solid", "auto-gradient") and not color1:
             raise ValueError(f"color1 is required for fill_type '{fill_type}'")
         if fill_type == "gradient" and (not color1 or not color2):
@@ -806,25 +804,25 @@ class IconEditor:
                 "color1 and color2 are required for fill_type 'gradient'"
             )
 
-        for group in self.icon_data["groups"]:
-            for layer in group["layers"]:
-                if layer["name"] == layer_name:
-                    if fill_type == "solid":
-                        layer["fill"] = {"solid": resolve_color(color1)}  # type: ignore[arg-type]
-                    elif fill_type == "auto-gradient":
-                        layer["fill"] = {"automatic-gradient": resolve_color(color1)}  # type: ignore[arg-type]
-                    elif fill_type == "gradient":
-                        layer["fill"] = {
-                            "linear-gradient": [
-                                resolve_color(color1),  # type: ignore[arg-type]
-                                resolve_color(color2),  # type: ignore[arg-type]
-                            ],
-                            "orientation": {
-                                "start": {"x": 0.5, "y": 0},
-                                "stop": {"x": 0.5, "y": 1},
-                            },
-                        }
-                    break
+        layer = self._get_layer(layer_ref, group)
+        if layer is not None:
+            if fill_type in ("none", "automatic"):
+                layer["fill"] = fill_type
+            elif fill_type == "solid":
+                layer["fill"] = {"solid": resolve_color(color1)}  # type: ignore[arg-type]
+            elif fill_type == "auto-gradient":
+                layer["fill"] = {"automatic-gradient": resolve_color(color1)}  # type: ignore[arg-type]
+            elif fill_type == "gradient":
+                layer["fill"] = {
+                    "linear-gradient": [
+                        resolve_color(color1),  # type: ignore[arg-type]
+                        resolve_color(color2),  # type: ignore[arg-type]
+                    ],
+                    "orientation": {
+                        "start": {"x": 0.5, "y": 0},
+                        "stop": {"x": 0.5, "y": 1},
+                    },
+                }
         self.save()
 
     def change_background_fill(
@@ -862,15 +860,60 @@ class IconEditor:
             }
         self.save()
 
-    def change_translucency(self, group_name: str, translucency: float):
+    def _get_group(self, group_ref) -> Optional[Dict[str, Any]]:
+        """Get a group by index (int, 1-based) or name (str).
+        Name lookup fails with ValueError if multiple groups share the same name."""
+        groups = self.icon_data.get("groups", [])
+        if isinstance(group_ref, int):
+            idx = group_ref - 1  # 1-based to 0-based
+            if 0 <= idx < len(groups):
+                return groups[idx]
+            return None
+        # String name lookup
+        matches = [g for g in groups if g.get("name") == group_ref]
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) > 1:
+            raise ValueError(
+                f"Ambiguous group name '{group_ref}': {len(matches)} groups share this name. Use index instead."
+            )
+        # For unnamed groups, try empty string match against groups with no name key
+        if group_ref == "":
+            unnamed = [g for g in groups if "name" not in g or g["name"] == ""]
+            if len(unnamed) == 1:
+                return unnamed[0]
+            if len(unnamed) > 1:
+                raise ValueError(
+                    f"Ambiguous: {len(unnamed)} unnamed groups. Use index instead."
+                )
+        return None
+
+    def _get_layer(self, layer_ref: Union[int, str], group_ref: Union[int, str] = 1) -> Optional[Dict[str, Any]]:
+        """Get a layer by index (int, 1-based within group) or name (str).
+        group_ref identifies which group to search (1-based index or name).
+        Name lookup fails with ValueError if multiple layers share the same name within the group."""
+        target_group = self._get_group(group_ref)
+        if target_group is None:
+            return None
+        layers = target_group.get("layers", [])
+        if isinstance(layer_ref, int):
+            idx = layer_ref - 1  # 1-based to 0-based
+            if 0 <= idx < len(layers):
+                return layers[idx]
+            return None
+        # String name lookup within the group
+        matches = [l for l in layers if l.get("name") == layer_ref]
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) > 1:
+            raise ValueError(
+                f"Ambiguous layer name '{layer_ref}': {len(matches)} layers share this name in the group. Use index instead."
+            )
+        return None
+
+    def change_translucency(self, group: Union[int, str], translucency: float):
         _validate_translucency(translucency)
-        target = None
-        for group in self.icon_data["groups"]:
-            if group.get("name") == group_name:
-                target = group
-                break
-        if target is None and len(self.icon_data["groups"]) == 1:
-            target = self.icon_data["groups"][0]
+        target = self._get_group(group)
         if target is not None:
             if translucency >= 1.0:
                 target.pop("translucency", None)
@@ -878,70 +921,149 @@ class IconEditor:
                 target["translucency"] = {"enabled": True, "value": translucency}
         self.save()
 
-    def set_shadow(
-        self, group_name: str, kind: str, opacity: float, color: Optional[str] = None
-    ):
-        if kind != "none":
-            _validate_shadow_kind(kind)
-            _validate_shadow_opacity(opacity)
-
-        target = None
-        for group in self.icon_data["groups"]:
-            if group.get("name") == group_name:
-                target = group
-                break
-        if target is None and len(self.icon_data["groups"]) == 1:
-            target = self.icon_data["groups"][0]
+    def set_shadow(self, group: Union[int, str], kind: str, opacity: float):
+        _validate_shadow_kind(kind)
+        _validate_shadow_opacity(opacity)
+        target = self._get_group(group)
         if target is not None:
-            if kind == "none":
-                target.pop("shadow", None)
+            target["shadow"] = {"kind": kind, "opacity": opacity}
+        self.save()
+
+    def set_group_opacity(self, group: Union[int, str], opacity: float):
+        """Set group opacity (Color section). Range 0.0-1.0."""
+        if not 0 <= opacity <= 1:
+            raise ValueError(f"Opacity must be 0.0-1.0, got {opacity}")
+        target = self._get_group(group)
+        if target is not None:
+            if opacity >= 1.0:
+                target.pop("opacity", None)
             else:
-                shadow: Dict[str, Any] = {"kind": kind, "opacity": opacity}
-                if color:
-                    shadow["color"] = resolve_color(color)
-                target["shadow"] = shadow
+                target["opacity"] = opacity
+        self.save()
+
+    def set_group_blend_mode(self, group: Union[int, str], blend_mode: str):
+        """Set blend mode on a group."""
+        target = self._get_group(group)
+        if target is not None:
+            if blend_mode == "normal":
+                target.pop("blend-mode", None)
+            else:
+                target["blend-mode"] = blend_mode
+        self.save()
+
+    def set_group_blur(self, group: Union[int, str], blur: float):
+        """Set blur-material on a group. Range 0.0-1.0."""
+        if not 0 <= blur <= 1:
+            raise ValueError(f"Blur must be 0.0-1.0, got {blur}")
+        target = self._get_group(group)
+        if target is not None:
+            target["blur-material"] = blur
+        self.save()
+
+    def set_group_lighting(self, group: Union[int, str], lighting: str):
+        """Set lighting mode on a group: 'combined' or 'individual'."""
+        if lighting not in ("combined", "individual"):
+            raise ValueError(f"Lighting must be 'combined' or 'individual', got '{lighting}'")
+        target = self._get_group(group)
+        if target is not None:
+            target["lighting"] = lighting
+        self.save()
+
+    def set_group_specular(self, group: Union[int, str], specular: bool):
+        """Set specular on a group."""
+        target = self._get_group(group)
+        if target is not None:
+            target["specular"] = specular
+        self.save()
+
+    def rename_group(self, group: Union[int, str], new_name: str):
+        """Rename a group. Rejects duplicate names."""
+        target = self._get_group(group)
+        if target is not None:
+            # Check for duplicate names
+            for g in self.icon_data["groups"]:
+                if g is not target and g.get("name") == new_name:
+                    raise ValueError(
+                        f"Another group is already named '{new_name}'. Group names must be unique."
+                    )
+            target["name"] = new_name
+        self.save()
+
+    def scale_shift_group(self, group: Union[int, str], scale: float, shift_x: int, shift_y: int):
+        """Set position (scale + translation) on a group via position-specializations."""
+        if scale <= 0:
+            raise ValueError(f"Scale must be positive, got {scale}")
+        target = self._get_group(group)
+        if target is not None:
+            pos_value = {
+                "scale": scale,
+                "translation-in-points": [shift_x, shift_y],
+            }
+            specs = target.get("position-specializations", [])
+            found = False
+            for spec in specs:
+                if spec.get("idiom") == "square":
+                    spec["value"] = pos_value
+                    found = True
+                    break
+            if not found:
+                specs.append({"idiom": "square", "value": pos_value})
+            target["position-specializations"] = specs
+        self.save()
+
+    def set_group_hidden(self, group: Union[int, str], hidden: bool):
+        """Set group visibility via hidden-specializations (square idiom)."""
+        target = self._get_group(group)
+        if target is not None:
+            specs = target.get("hidden-specializations", [])
+            found = False
+            for spec in specs:
+                if spec.get("idiom") == "square":
+                    spec["value"] = hidden
+                    found = True
+                    break
+            if not found:
+                specs.append({"idiom": "square", "value": hidden})
+            target["hidden-specializations"] = specs
         self.save()
 
     def get_groups(self) -> List[Dict[str, Any]]:
         return self.icon_data.get("groups", [])
 
-    def get_layers(self, group_index: int = 0) -> List[Dict[str, Any]]:
-        groups = self.icon_data.get("groups", [])
-        if group_index < len(groups):
-            return groups[group_index].get("layers", [])
+    def get_layers(self, group: Union[int, str] = 1) -> List[Dict[str, Any]]:
+        target = self._get_group(group)
+        if target is not None:
+            return target.get("layers", [])
         return []
 
-    def remove_layer(self, layer_name: str, group_index: int = 0):
-        groups = self.icon_data.get("groups", [])
-        if group_index < len(groups):
-            layers = groups[group_index].get("layers", [])
-            # Find and remove the layer, cleaning up its SVG asset
-            for layer in layers:
-                if layer.get("name") == layer_name:
-                    image_name = layer.get("image-name")
-                    if image_name and self.icon_json_path:
-                        asset_path = os.path.join(
-                            os.path.dirname(self.icon_json_path), "Assets", image_name
-                        )
-                        if os.path.isfile(asset_path):
-                            os.remove(asset_path)
-                    break
-            groups[group_index]["layers"] = [
-                l for l in layers if l.get("name") != layer_name
-            ]
-            self.save()
-
-    def reorder_layer(self, layer_name: str, new_index: int, group_index: int = 0):
-        groups = self.icon_data.get("groups", [])
-        if group_index >= len(groups):
+    def remove_layer(self, layer_ref: Union[int, str], group: Union[int, str] = 1):
+        target_group = self._get_group(group)
+        if target_group is None:
             return
-        layers = groups[group_index].get("layers", [])
-        for i, layer in enumerate(layers):
-            if layer.get("name") == layer_name:
-                layers.pop(i)
-                layers.insert(max(0, min(new_index, len(layers))), layer)
-                self.save()
-                return
+        layer = self._get_layer(layer_ref, group)
+        if layer is None:
+            return
+        image_name = layer.get("image-name")
+        if image_name and self.icon_json_path:
+            asset_path = os.path.join(
+                os.path.dirname(self.icon_json_path), "Assets", image_name
+            )
+            if os.path.isfile(asset_path):
+                os.remove(asset_path)
+        target_group["layers"] = [l for l in target_group["layers"] if l is not layer]
+        self.save()
+
+    def reorder_layer(self, layer_ref: Union[int, str], new_index: int, group: Union[int, str] = 1):
+        target_group = self._get_group(group)
+        if target_group is None:
+            return
+        layer = self._get_layer(layer_ref, group)
+        if layer is None:
+            return
+        layers = target_group["layers"]
+        layers.remove(layer)
+        layers.insert(max(0, min(new_index, len(layers))), layer)
+        self.save()
 
     def save(self) -> None:
         if self.icon_json_path:
