@@ -789,6 +789,14 @@ class IconEditor:
                 layer["blend-mode"] = blend_mode
         self.save()
 
+    def rename_layer(self, layer_ref: Union[int, str], new_name: str,
+                     group: Union[int, str] = 1):
+        """Rename a layer. The underlying asset file is left unchanged."""
+        layer = self._get_layer(layer_ref, group)
+        if layer is not None and layer.get("name") != new_name:
+            layer["name"] = new_name
+            self.save()
+
     def change_fill(
         self,
         layer_ref: Union[int, str],
@@ -977,15 +985,9 @@ class IconEditor:
         self.save()
 
     def rename_group(self, group: Union[int, str], new_name: str):
-        """Rename a group. Rejects duplicate names."""
+        """Rename a group."""
         target = self._get_group(group)
         if target is not None:
-            # Check for duplicate names
-            for g in self.icon_data["groups"]:
-                if g is not target and g.get("name") == new_name:
-                    raise ValueError(
-                        f"Another group is already named '{new_name}'. Group names must be unique."
-                    )
             target["name"] = new_name
         self.save()
 

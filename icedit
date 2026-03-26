@@ -164,6 +164,12 @@ def main():
     hide_group_parser.add_argument("group", help="Group index (1-based) or name")
     hide_group_parser.add_argument("hidden", choices=["true", "false"], help="true to hide, false to show")
 
+    rename_layer_parser = subparsers.add_parser("rename_layer", help="Rename a layer")
+    rename_layer_parser.add_argument("icon_path", help="Path to the icon")
+    rename_layer_parser.add_argument("layer", help="Layer index (1-based) or name")
+    rename_layer_parser.add_argument("new_name", help="New name for the layer")
+    rename_layer_parser.add_argument("--group", default="1", help="Group index (1-based) or name (default: 1)")
+
     rename_group_parser = subparsers.add_parser("rename_group", help="Rename a group")
     rename_group_parser.add_argument("icon_path", help="Path to the icon")
     rename_group_parser.add_argument("group", help="Group index (1-based) or name")
@@ -392,6 +398,14 @@ def main():
         icon.set_group_hidden(g, hidden)
         state = "hidden" if hidden else "visible"
         print(f"Group {args.group} is now {state} in {icon_path}")
+    elif args.command == "rename_layer":
+        try:
+            l = parse_ref(args.layer)
+            g = parse_ref(args.group)
+            icon.rename_layer(l, args.new_name, group=g)
+            print(f"Renamed layer '{args.layer}' to '{args.new_name}' in {icon_path}")
+        except ValueError as e:
+            print(f"Error: {e}")
     elif args.command == "rename_group":
         g = parse_ref(args.group)
         icon.rename_group(g, args.new_name)

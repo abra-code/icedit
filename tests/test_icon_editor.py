@@ -691,16 +691,15 @@ class TestIconEditor(unittest.TestCase):
         icon.rename_group(1, "Front")
         self.assertEqual(icon.get_groups()[0]["name"], "Front")
 
-    def test_rename_group_duplicate_rejected(self):
+    def test_rename_group_duplicate_allowed(self):
         icon_path = os.path.join(self.temp_dir, "test.icon")
         icon = IconEditor.create_new(icon_path, "blue")
         icon.add_svg_layer(self.svg_path, "circle")
         icon.rename_group(1, "Front")
         icon.icon_data["groups"].append({"name": "Back", "layers": []})
         icon.save()
-        with self.assertRaises(ValueError) as ctx:
-            icon.rename_group(2, "Front")
-        self.assertIn("unique", str(ctx.exception))
+        icon.rename_group(2, "Front")
+        self.assertEqual(icon.get_groups()[1]["name"], "Front")
 
     def test_scale_shift_group(self):
         icon_path = os.path.join(self.temp_dir, "test.icon")
