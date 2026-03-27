@@ -10,10 +10,23 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from icon_editor.core import IconEditor, resolve_color
 
 
+def find_icon_composer():
+    """Find Icon Composer.app in common locations."""
+    search_paths = [
+        "/Applications/Icon Composer.app",
+        "/Applications/Xcode.app/Contents/Applications/Icon Composer.app",
+    ]
+    for path in search_paths:
+        ictool = os.path.join(path, "Contents/Executables/ictool")
+        if os.path.isfile(ictool):
+            return ictool
+    return None
+
+
 def run_ictool(icon_path, output_png):
     """Run ictool to export .icon to .png if Icon Composer is installed."""
-    ictool_path = "/Applications/Icon Composer.app/Contents/Executables/ictool"
-    if os.path.exists(ictool_path):
+    ictool_path = find_icon_composer()
+    if ictool_path and os.path.exists(ictool_path):
         try:
             result = subprocess.run(
                 [

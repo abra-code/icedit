@@ -8,7 +8,20 @@ from typing import Any, Dict, List, Optional
 from icon_editor.core import IconEditor
 
 
-ICTOOL_PATH = "/Applications/Icon Composer.app/Contents/Executables/ictool"
+def find_icon_composer():
+    """Find Icon Composer.app in common locations."""
+    search_paths = [
+        "/Applications/Icon Composer.app",
+        "/Applications/Xcode.app/Contents/Applications/Icon Composer.app",
+    ]
+    for path in search_paths:
+        ictool = os.path.join(path, "Contents/Executables/ictool")
+        if os.path.isfile(ictool):
+            return ictool
+    return None
+
+
+ICTOOL_PATH = find_icon_composer()
 
 
 def validate_icon(icon_path: str, output_dir: Optional[str] = None) -> Dict[str, Any]:
