@@ -269,23 +269,15 @@ CRAYONS_COLORS = {
 }
 
 VALID_BLEND_MODES = {
-    "plus-darker",
-    "plus-lighter",
-    "multiply",
-    "screen",
-    "overlay",
     "darken",
+    "multiply",
+    "plus-darker",
     "lighten",
-    "color-dodge",
-    "color-burn",
+    "screen",
+    "plus-lighter",
+    "overlay",
     "soft-light",
     "hard-light",
-    "difference",
-    "exclusion",
-    "hue",
-    "saturation",
-    "color",
-    "luminosity",
 }
 VALID_SHADOW_KINDS = {"none", "neutral", "layer-color"}
 
