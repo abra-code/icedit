@@ -175,6 +175,12 @@ def main():
     rename_group_parser.add_argument("group", help="Group index (1-based) or name")
     rename_group_parser.add_argument("new_name", help="New name for the group")
 
+    reorder_parser = subparsers.add_parser("reorder", help="Move a layer to a new position")
+    reorder_parser.add_argument("icon_path", help="Path to the icon")
+    reorder_parser.add_argument("layer", help="Layer index (1-based) or name")
+    reorder_parser.add_argument("new_position", type=int, help="New position (1-based)")
+    reorder_parser.add_argument("--group", default="1", help="Group index (1-based) or name (default: 1)")
+
     scale_shift_group_parser = subparsers.add_parser(
         "scale_shift_group", help="Scale and shift a group"
     )
@@ -410,6 +416,14 @@ def main():
         g = parse_ref(args.group)
         icon.rename_group(g, args.new_name)
         print(f"Renamed group '{args.group}' to '{args.new_name}' in {icon_path}")
+    elif args.command == "reorder":
+        try:
+            l = parse_ref(args.layer)
+            g = parse_ref(args.group)
+            icon.reorder_layer(l, args.new_position - 1, group=g)
+            print(f"Moved layer '{args.layer}' to position {args.new_position} in {icon_path}")
+        except ValueError as e:
+            print(f"Error: {e}")
     elif args.command == "scale_shift_group":
         try:
             g = parse_ref(args.group)

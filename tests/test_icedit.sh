@@ -6,78 +6,205 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
 
+PASS=0
+FAIL=0
+ICON="/tmp/test_cli_icon.icon"
+SVG="/tmp/simple.svg"
+
+# --- Helpers ---
+
+find_ictool() {
+    local candidate
+    for candidate in \
+        "/Applications/Icon Composer.app/Contents/Executables/ictool" \
+        "/Applications/Xcode.app/Contents/Applications/Icon Composer.app/Contents/Executables/ictool"; do
+        if [ -x "$candidate" ]; then
+            echo "$candidate"
+            return
+        fi
+    done
+    
+    local xcode_dev="$(xcode-select -p 2>/dev/null || true)"
+    if [ -n "$xcode_dev" ]; then
+        candidate="${xcode_dev%/Developer}/Applications/Icon Composer.app/Contents/Executables/ictool"
+        if [ -x "$candidate" ]; then
+            echo "$candidate"
+            return
+        fi
+    fi
+}
+
+run_test() {
+    # Usage: run_test "description" command [args...]
+    local desc="$1"
+    shift
+    echo -n "  $desc... "
+    if "$@" > /tmp/test_icedit_out.txt 2>&1; then
+        echo "ok"
+        PASS=$((PASS + 1))
+    else
+        echo "FAIL"
+        cat /tmp/test_icedit_out.txt
+        FAIL=$((FAIL + 1))
+    fi
+}
+
+assert_eqaul() {
+    # Usage: assert_eqaul "description" "actual" "expected"
+    local desc="$1"
+    local actual="$2"
+    local expected="$3"
+    echo -n "  $desc... "
+    if [ "$actual" = "$expected" ]; then
+        echo "ok"
+        PASS=$((PASS + 1))
+    else
+        echo "FAIL"
+        echo "    expected: $expected"
+        echo "    actual:   $actual"
+        FAIL=$((FAIL + 1))
+    fi
+}
+
+assert_file_exists() {
+    # Usage: assert_file_exists "description" path
+    local desc="$1"
+    local path="$2"
+    echo -n "  $desc... "
+    if [ -f "$path" ] || [ -d "$path" ]; then
+        echo "ok"
+        PASS=$((PASS + 1))
+    else
+        echo "FAIL (not found: $path)"
+        FAIL=$((FAIL + 1))
+    fi
+}
+
+layer_names() {
+    # Usage: layer_names [group]
+    # Prints layer names from icon.json, one per line, in array order
+    local group="${1:-0}"
+    python3 -c "
+import json, sys
+with open('$ICON/icon.json') as f:
+    data = json.load(f)
+groups = data.get('groups', [])
+if $group < len(groups):
+    for l in groups[$group].get('layers', []):
+        print(l.get('name', ''))
+"
+}
+
+reset_icon() {
+    # Create a fresh icon with 3 layers: triangle(1), square(2), circle(3)
+    rm -rf "$ICON"
+    python3 icedit create "$ICON" blue 2>/dev/null
+    python3 icedit add_svg "$ICON" "$SVG" circle 2>/dev/null
+    python3 icedit add_svg "$ICON" "$SVG" square 2>/dev/null
+    python3 icedit add_svg "$ICON" "$SVG" triangle 2>/dev/null
+}
+
+# --- Setup ---
+
 echo "Starting icedit tests..."
 
-# Clean up from previous runs
-if [ -d "/tmp/test_cli_icon.icon" ]; then
-    rm -rf "/tmp/test_cli_icon.icon"
-    echo "Cleaned up previous test icon"
-fi
+rm -rf "$ICON"
 
-# Ensure simple.svg exists
-if [ ! -f "/tmp/simple.svg" ]; then
-    cat > /tmp/simple.svg << 'EOF'
+if [ ! -f "$SVG" ]; then
+    cat > "$SVG" << 'SVGEOF'
 <svg xmlns="http://www.w3.org/2000/svg"><path d="M50 10 A40 40 0 1 1 50 90 A40 40 0 1 1 50 10"/></svg>
-EOF
-    echo "Created /tmp/simple.svg"
+SVGEOF
 fi
 
-# Test 1: Create icon
-echo "Test 1: Creating icon with blue background"
-python3 icedit create "/tmp/test_cli_icon.icon" blue
-if [ ! -d "/tmp/test_cli_icon.icon" ]; then
-    echo "ERROR: Icon directory not created"
-    exit 1
-fi
-echo "✓ Icon created"
+# --- Basic commands ---
 
-# Test 2: Add SVG layer
-echo "Test 2: Adding SVG layer"
-python3 icedit add_svg "/tmp/test_cli_icon.icon" "/tmp/simple.svg" circle --color red
-if [ ! -f "/tmp/test_cli_icon.icon/Assets/circle.svg" ]; then
-    echo "ERROR: SVG asset not added"
-    exit 1
-fi
-echo "✓ SVG layer added"
+echo ""
+echo "Basic commands:"
 
-# Test 3: Scale and shift
-echo "Test 3: Scaling and shifting layer"
-python3 icedit scale_shift "/tmp/test_cli_icon.icon" circle 0.8 20 30
-echo "✓ Layer scaled and shifted"
+run_test "create icon" python3 icedit create "$ICON" blue
+assert_file_exists "icon directory exists" "$ICON"
+assert_file_exists "icon.json exists" "$ICON/icon.json"
 
-# Test 4: Change fill to solid
-echo "Test 4: Changing fill to solid"
-python3 icedit change_fill "/tmp/test_cli_icon.icon" circle solid green
-echo "✓ Fill changed to solid"
+run_test "add SVG layer" python3 icedit add_svg "$ICON" "$SVG" circle --color red
+assert_file_exists "SVG asset copied" "$ICON/Assets/circle.svg"
 
-# Test 5: Change fill to auto-gradient
-echo "Test 5: Changing fill to auto-gradient"
-python3 icedit change_fill "/tmp/test_cli_icon.icon" circle auto-gradient orange
-echo "✓ Fill changed to auto-gradient"
+run_test "scale and shift layer" python3 icedit scale_shift "$ICON" circle 0.8 20 30
+run_test "change fill to solid" python3 icedit change_fill "$ICON" circle solid green
+run_test "change fill to auto-gradient" python3 icedit change_fill "$ICON" circle auto-gradient orange
+run_test "change translucency" python3 icedit change_translucency "$ICON" "" 0.5
 
-# Test 6: Change translucency
-echo "Test 6: Changing translucency"
-python3 icedit change_translucency "/tmp/test_cli_icon.icon" "" 0.5
-echo "✓ Translucency set"
+# --- Reorder ---
 
-# Test 7: Export with ictool (if available)
-echo "Test 7: Exporting icon"
-if command -v /Applications/Icon\ Composer.app/Contents/Executables/ictool >/dev/null 2>&1; then
-    rm -f "/tmp/test_cli_icon.png"
-    /Applications/Icon\ Composer.app/Contents/Executables/ictool "/tmp/test_cli_icon.icon" --export-image --output-file "/tmp/test_cli_icon.png" --platform macOS --rendition Default --width 1024 --height 1024 --scale 1
-    if [ -f "/tmp/test_cli_icon.png" ]; then
-        echo "✓ Icon exported successfully"
-        rm -f "/tmp/test_cli_icon.png"
-    else
-        echo "ERROR: Export failed"
-        exit 1
-    fi
+echo ""
+echo "Reorder:"
+
+reset_icon
+names="$(layer_names)"
+assert_eqaul "initial order" "$names" "$(printf 'triangle\nsquare\ncircle')"
+
+run_test "move position 1 to position 2" python3 icedit reorder "$ICON" 1 2
+names="$(layer_names)"
+assert_eqaul "after move down" "$names" "$(printf 'square\ntriangle\ncircle')"
+
+reset_icon
+run_test "move position 3 to position 1" python3 icedit reorder "$ICON" 3 1
+names="$(layer_names)"
+assert_eqaul "after move up" "$names" "$(printf 'circle\ntriangle\nsquare')"
+
+reset_icon
+run_test "move by name" python3 icedit reorder "$ICON" circle 1
+names="$(layer_names)"
+assert_eqaul "after move by name" "$names" "$(printf 'circle\ntriangle\nsquare')"
+
+reset_icon
+run_test "move to same position (no-op)" python3 icedit reorder "$ICON" 2 2
+names="$(layer_names)"
+assert_eqaul "after no-op" "$names" "$(printf 'triangle\nsquare\ncircle')"
+
+reset_icon
+run_test "move first to last" python3 icedit reorder "$ICON" 1 3
+names="$(layer_names)"
+assert_eqaul "after move to last" "$names" "$(printf 'square\ncircle\ntriangle')"
+
+# Reorder in second group
+reset_icon
+python3 -c "
+import json
+with open('$ICON/icon.json') as f:
+    data = json.load(f)
+data['groups'].append({'name': 'Second', 'layers': []})
+with open('$ICON/icon.json', 'w') as f:
+    json.dump(data, f)
+" 2>/dev/null
+python3 icedit add_svg "$ICON" "$SVG" alpha --group 2 2>/dev/null
+python3 icedit add_svg "$ICON" "$SVG" beta --group 2 2>/dev/null
+run_test "reorder in second group" python3 icedit reorder "$ICON" 2 1 --group 2
+names="$(layer_names 1)"
+assert_eqaul "second group order" "$names" "$(printf 'alpha\nbeta')"
+
+# --- Export (if ictool available) ---
+
+echo ""
+echo "Export:"
+ICTOOL="$(find_ictool)"
+if [ -n "$ICTOOL" ]; then
+    reset_icon
+    rm -f /tmp/test_cli_icon.png
+    run_test "export with ictool" "$ICTOOL" "$ICON" --export-image --output-file /tmp/test_cli_icon.png --platform macOS --rendition Default --width 1024 --height 1024 --scale 1
+    assert_file_exists "exported PNG" /tmp/test_cli_icon.png
+    rm -f /tmp/test_cli_icon.png
 else
-    echo "⚠ Icon Composer not available, skipping export test"
+    echo "  (Icon Composer not available, skipping)"
 fi
 
-# Clean up
-echo "Cleaning up..."
-rm -rf "/tmp/test_cli_icon.icon"
+# --- Cleanup & Summary ---
 
+rm -rf "$ICON"
+rm -f /tmp/test_icedit_out.txt
+
+echo ""
+echo "Results: $PASS passed, $FAIL failed"
+if [ "$FAIL" -gt 0 ]; then
+    exit 1
+fi
 echo "All icedit tests passed!"
