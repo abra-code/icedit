@@ -14,6 +14,17 @@ def find_icon_composer():
         "/Applications/Icon Composer.app",
         "/Applications/Xcode.app/Contents/Applications/Icon Composer.app",
     ]
+    try:
+        r = subprocess.run(["xcode-select", "-p"], capture_output=True, text=True)
+        if r.returncode == 0:
+            dev_path = r.stdout.strip()
+            if dev_path.endswith("/Developer"):
+                xcode_contents = dev_path[: -len("/Developer")]
+                search_paths.append(
+                    os.path.join(xcode_contents, "Applications/Icon Composer.app")
+                )
+    except (OSError, FileNotFoundError):
+        pass
     for path in search_paths:
         ictool = os.path.join(path, "Contents/Executables/ictool")
         if os.path.isfile(ictool):
@@ -26,7 +37,7 @@ ICTOOL_PATH = find_icon_composer()
 
 def validate_icon(icon_path: str, output_dir: Optional[str] = None) -> Dict[str, Any]:
     """Validate icon by exporting PNGs with ictool. Returns validation results."""
-    if not os.path.exists(ICTOOL_PATH):
+    if not ICTOOL_PATH or not os.path.exists(ICTOOL_PATH):
         return {"valid": False, "error": "Icon Composer not installed", "exports": []}
 
     if output_dir is None:
