@@ -9,8 +9,8 @@
           "fill" : {
             "solid" : "extended-srgb:1.00000,0.80000,0.00000,1.00000"
           },
-          "image-name" : "dot.scope-black.svg",
-          "name" : "dot.scope-black",
+          "image-name" : "crosshairs.svg",
+          "name" : "crosshairs",
           "position" : {
             "scale" : 0.8,
             "translation-in-points" : [
@@ -23,8 +23,8 @@
           "fill" : {
             "automatic-gradient" : "extended-srgb:1.00000,0.55294,0.15686,1.00000"
           },
-          "image-name" : "square.dashed-black.svg",
-          "name" : "square.dashed-black",
+          "image-name" : "square-outline.svg",
+          "name" : "square-outline",
           "position" : {
             "scale" : 1.05,
             "translation-in-points" : [

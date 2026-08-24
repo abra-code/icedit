@@ -6,8 +6,8 @@
     {
       "layers" : [
         {
-          "image-name" : "heart-black.svg",
-          "name" : "heart-black"
+          "image-name" : "cards-heart.svg",
+          "name" : "cards-heart"
         }
       ],
       "shadow" : {

@@ -12,8 +12,8 @@
       ],
       "layers" : [
         {
-          "image-name" : "music.note.svg",
-          "name" : "music.note",
+          "image-name" : "music-note.svg",
+          "name" : "music-note",
           "position-specializations" : [
             {
               "idiom" : "square",

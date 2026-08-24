@@ -7,8 +7,8 @@
       "layers" : [
         {
           "glass" : false,
-          "image-name" : "waveform.circle.fill.svg",
-          "name" : "waveform.circle.fill",
+          "image-name" : "sine-wave.svg",
+          "name" : "sine-wave",
           "position-specializations" : [
             {
               "idiom" : "square",

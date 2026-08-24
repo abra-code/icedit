@@ -96,3 +96,11 @@ python3 -m unittest discover -s tests
 ## License
 
 Apache 2.0
+
+### Third-party artwork
+
+The example icons under `tests/IconExamples/` use glyphs from
+[Pictogrammers Material Design Icons](https://pictogrammers.com/library/mdi/),
+distributed under the Pictogrammers Free License, which carries Apache 2.0 terms
+for the icons and the font. `dot.icon` is the exception: its artwork is an
+original hand-written path.

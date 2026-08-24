@@ -6,8 +6,8 @@
     {
       "layers" : [
         {
-          "image-name" : "circle.svg",
-          "name" : "circle",
+          "image-name" : "dot.svg",
+          "name" : "dot",
           "position" : {
             "scale" : 0.8,
             "translation-in-points" : [

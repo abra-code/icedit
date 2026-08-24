@@ -9,8 +9,8 @@
           "fill" : {
             "solid" : "extended-srgb:1.00000,0.55294,0.15686,1.00000"
           },
-          "image-name" : "arrow.trianglehead.2.clockwise.svg",
-          "name" : "arrow.trianglehead.2.clockwise"
+          "image-name" : "autorenew.svg",
+          "name" : "autorenew"
         }
       ],
       "name" : "Shadow Off",
@@ -41,8 +41,8 @@
           "fill" : {
             "solid" : "extended-srgb:1.00000,0.21961,0.23529,1.00000"
           },
-          "image-name" : "waveform 2.svg",
-          "name" : "waveform2"
+          "image-name" : "cosine-wave 2.svg",
+          "name" : "cosine-wave2"
         }
       ],
       "name" : "Chromatic Shadow",
@@ -70,8 +70,8 @@
     {
       "layers" : [
         {
-          "image-name" : "waveform.svg",
-          "name" : "waveform",
+          "image-name" : "sine-wave.svg",
+          "name" : "sine-wave",
           "position-specializations" : [
             {
               "idiom" : "square",

@@ -19,8 +19,8 @@
             "automatic-gradient" : "extended-srgb:1.00000,0.21961,0.23529,1.00000"
           },
           "glass" : true,
-          "image-name" : "heart-black.svg",
-          "name" : "heart-black",
+          "image-name" : "cards-heart.svg",
+          "name" : "cards-heart",
           "position-specializations" : [
             {
               "value" : {
@@ -72,8 +72,8 @@
     {
       "layers" : [
         {
-          "image-name" : "heart-black.svg",
-          "name" : "heart-black"
+          "image-name" : "cards-heart.svg",
+          "name" : "cards-heart"
         }
       ],
       "lighting" : "individual",

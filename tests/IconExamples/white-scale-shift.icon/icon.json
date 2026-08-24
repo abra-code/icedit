@@ -9,8 +9,8 @@
           "fill" : {
             "automatic-gradient" : "extended-srgb:0.79608,0.18824,0.87843,1.00000"
           },
-          "image-name" : "square.and.arrow.up-black.svg",
-          "name" : "square.and.arrow.up-black",
+          "image-name" : "tray-arrow-up.svg",
+          "name" : "tray-arrow-up",
           "position" : {
             "scale" : 0.9,
             "translation-in-points" : [
