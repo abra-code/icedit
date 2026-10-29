@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Rounded-tile app icon background, for Linux app icons and others drawn without Icon Composer.
+
+  Canvas: 1024 x 1024. Tile: a plain rounded square, 944 x 944 at (40, 24), corner radius 189
+  (circular arcs), with a darker side 32 units deep below it, as GNOME's app icons show their
+  depth. Nothing else: no gloss, highlight or glass. With its side the tile covers 944 x 976 of
+  the canvas, as GNOME Settings (960 x 976) and Web do: a dark square tile drawn smaller, at
+  Terminal's 832, looked small beside them in the app grid.
+
+  Artwork drawn for an Icon Composer .icon bundle is relative to the tile, which fills that
+  bundle's 1024 artboard. Placed here it needs the artboard mapped onto the tile:
+  transform="translate(40, 24) scale(0.921875)" on a group holding it. Within the artboard, a layer
+  SVG is a 768 x 768 box centered on the artboard, scaled by the layer's "scale" about the
+  artboard's center and moved by its "translation-in-points":
+  translate(512 + tx, 512 + ty) scale(s) translate(-384, -384).
+
+  Put glyph layers in the "layers" group, which already maps the artboard onto the tile; the
+  safe area for artwork is the artboard's middle 768 x 768.
+
+  Colors: the face is filled by the "face-fill" gradient, top to bottom (x1/y1 to x2/y2, in the
+  tile's own 0..1 box: x1="0" y1="0" x2="1" y2="1" runs corner to corner); give both stops the
+  same color for a solid tile. The side is "side-fill", usually the face's bottom color, darker.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="face-fill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4b4b52"/>
+      <stop offset="1" stop-color="#1f1f23"/>
+    </linearGradient>
+    <linearGradient id="side-fill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#121214"/>
+      <stop offset="1" stop-color="#121214"/>
+    </linearGradient>
+  </defs>
+  <rect id="tile-side" x="40" y="56" width="944" height="944" rx="189" fill="url(#side-fill)"/>
+  <rect id="tile-face" x="40" y="24" width="944" height="944" rx="189" fill="url(#face-fill)"/>
+  <g id="layers" transform="translate(40, 24) scale(0.921875)">
+  </g>
+</svg>
