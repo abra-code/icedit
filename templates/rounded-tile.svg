@@ -18,6 +18,20 @@
   Put glyph layers in the "layers" group, which already maps the artboard onto the tile; the
   safe area for artwork is the artboard's middle 768 x 768.
 
+  Keep the result to SVG 1.2 Tiny plus plain groups, so every Linux desktop draws it. KDE Plasma
+  draws app icons (taskbar, launcher, Dolphin) with Qt's SVG renderer, which supports SVG 1.2 Tiny
+  and, since Qt 6.7, a few SVG 1.1 extras (mask, symbol, marker, pattern, filter); through Qt 6.12
+  it draws no nested <svg> element and no <clipPath>. GNOME and Xfce use librsvg, which draws
+  both, so an icon can look right there and be broken in Plasma (a nested <svg> layer is left out:
+  only the tile shows). So:
+  - Do not paste a layer SVG in as a nested <svg>. Put its contents in a group whose transform does
+    what the nested viewport did: for a 768 x 768 viewport and the layer's viewBox "x y w h",
+    s = min(768 / w, 768 / h), transform="translate((768 - w*s)/2 - x*s, (768 - h*s)/2 - y*s) scale(s)",
+    inside the layer's own placement group.
+  - No clipPath; no CSS style sheets or "style" attributes beyond what SVG Tiny allows; no
+    external references (href to files) or embedded bitmaps where a vector will do.
+  - Check a new icon in Plasma (or with Qt's QSvgRenderer), not only in a browser or librsvg.
+
   Colors: the face is filled by the "face-fill" gradient, top to bottom (x1/y1 to x2/y2, in the
   tile's own 0..1 box: x1="0" y1="0" x2="1" y2="1" runs corner to corner); give both stops the
   same color for a solid tile. The side is "side-fill", usually the face's bottom color, darker.
